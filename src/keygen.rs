@@ -302,6 +302,7 @@ impl<C: CurveTrait> Worker<C> {
         inputs: P::Input,
         key_id: KeyId,
     ) -> anyhow::Result<()> {
+        println!("Initializing new sub-protocol for SID: {:?} and KeyID: {:?}", sid, key_id);
         let rng = &mut rand::thread_rng();
 
         let mut participant: Participant<P> = Participant::from_config(config, sid.0, inputs)?;
@@ -316,6 +317,7 @@ impl<C: CurveTrait> Worker<C> {
     }
 
     fn process_keygen(&mut self, sid: SessionId, incoming: Message) -> anyhow::Result<()> {
+        println!("Processing keygen message for SID: {:?}", sid);
         let (p, key_id) = self.participants.get_mut::<KeygenParticipant<C>>(&sid);
         Self::process_message(
             p,
