@@ -1,34 +1,100 @@
 /// Axum hello world example application.
 
 use axum::{
-    routing::get,
-    Router,
+    extract::FromRequestParts, http::{request::Parts, StatusCode}, response::IntoResponse, routing::get, Json, Router
 };
+use axum_server::tls_rustls::RustlsConfig;
+use base64::{engine::general_purpose, Engine as _};
+use serde::Serialize;
+use tower_http::services::ServeDir;
+use std::{future::Future, net::SocketAddr};
+use std::pin::Pin;
 
-/* 
-Next function creates an Axum endpoint that responds with "Hello, World!" to any GET request.
-It must be run within an async runtime, such as Tokio.
-It uses localhost and port 3000 by default.
-*/
+struct BasicAuth {
+    username: String,
+    password: String,
+}
+
+// Wallet data (fake for now)
+#[derive(Serialize)]
+struct WalletData {
+    balance: u64,
+    transactions: Vec<String>,
+}
+
+// Implement BasicAuth extractor
+impl<S> FromRequestParts<S> for BasicAuth
+where
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, String);
+
+    fn from_request_parts<'a, 'b>(
+        parts: &'a mut Parts,
+        _state: &'b S,
+    ) -> Pin<Box<dyn Future<Output = Result<Self, Self::Rejection>> + Send + 'a>> 
+    {
+        Box::pin(async move {
+            let header = match parts.headers.get("authorization") {
+                Some(h) => h.to_str().unwrap_or(""),
+                None => return Err((StatusCode::UNAUTHORIZED, "Missing Authorization".into())),
+            };
+
+            if !header.starts_with("Basic ") {
+                return Err((StatusCode::UNAUTHORIZED, "Unsupported auth scheme".into()));
+            }
+
+            let b64 = &header[6..];
+            let decoded = general_purpose::STANDARD
+                .decode(b64)
+                .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid Base64".into()))?;
+            let cred = String::from_utf8(decoded)
+                .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid UTF-8".into()))?;
+
+            let mut parts = cred.splitn(2, ':');
+            let username = parts.next().unwrap_or("").to_string();
+            let password = parts.next().unwrap_or("").to_string();
+
+            if username == "admin" && password == "secret" {
+                Ok(BasicAuth { username, password })
+            } else {
+                Err((StatusCode::UNAUTHORIZED, "Invalid credentials".into()))
+            }
+        })
+    }
+}
+
+// Route handler
+async fn protected(_auth: BasicAuth) -> impl IntoResponse {
+    let wallet = WalletData {
+        balance: 4200,
+        transactions: vec![
+            "Deposit 1000".to_string(),
+            "Withdraw 200".to_string(),
+            "Deposit 3400".to_string(),
+        ],
+    };
+    Json(wallet)
+}
+
 #[tokio::main]
-async fn main() {
-    let address = "127.0.0.1:3000";
-    let listener = tokio::net::TcpListener::bind(address).await.unwrap();
-    println!("Listening on {}", listener.local_addr().unwrap());
-    axum::serve(listener, router()).await.unwrap();
-}
+async fn main() -> anyhow::Result<()> {
+     let app = Router::new()
+        .route("/protected", get(protected))
+        // Serve everything under ./static, with index.html support
+        .fallback_service(ServeDir::new("src/static").append_index_html_on_directories(true));
 
-fn router() -> Router {
-    Router::new().route("/", get(hello_world))
-    // Add route for keygen
-    .route("/keygen", get(keygen))
-}
+    // Load TLS cert and key (PEM files)
+    // You can also build RustlsConfig from bytes or from a certificate store.
+    let tls = RustlsConfig::from_pem_file("cert.pem", "key.pem").await?;
+    let addr: SocketAddr = "0.0.0.0:8443".parse()?; // use 443 in production if you control the machine
 
-async fn hello_world() -> &'static str {
-    "Hello, World!"
-} 
+    println!("Listening on https://localhost:8443");
 
-async fn keygen() -> &'static str {
-    // Placeholder for key generation logic
-    "Key generation endpoint"
+    // Serve with TLS (axum-server wraps hyper + rustls neatly)
+    axum_server::bind_rustls(addr, tls)
+        .serve(app.into_make_service())
+        .await?;
+
+    Ok(())
 }

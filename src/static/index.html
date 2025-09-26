@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Wallet Login</title>
+  <style>
+    body { font-family: sans-serif; margin: 2em; }
+    .hidden { display: none; }
+    .error { color: red; }
+    input { margin: 0.3em 0; padding: 0.5em; }
+    button { padding: 0.5em 1em; }
+  </style>
+</head>
+<body>
+  <h1>Wallet Service</h1>
+
+  <!-- Login form -->
+  <div id="login">
+    <h2>Login</h2>
+    <p class="error" id="error"></p>
+    <input type="text" id="username" placeholder="Username" /><br/>
+    <input type="password" id="password" placeholder="Password" /><br/>
+    <button id="loginBtn">Login</button>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" class="hidden">
+    <h2>Welcome, <span id="user"></span></h2>
+    <p>Your wallet data will appear here...</p>
+    <pre id="wallet"></pre>
+    <button id="logoutBtn">Logout</button>
+  </div>
+
+  <script>
+    let authHeader = "";
+
+    document.getElementById("loginBtn").onclick = async () => {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+
+      authHeader = "Basic " + btoa(username + ":" + password);
+
+      try {
+        let res = await fetch("https://localhost:8443/protected", {
+          headers: { "Authorization": authHeader }
+        });
+
+        if (!res.ok) {
+          document.getElementById("error").innerText = "Invalid credentials!";
+          return;
+        }
+
+        let data = await res.json();
+
+        // Show dashboard
+        document.getElementById("login").classList.add("hidden");
+        document.getElementById("dashboard").classList.remove("hidden");
+        document.getElementById("user").innerText = username;
+        document.getElementById("wallet").innerText = JSON.stringify(data, null, 2);
+
+      } catch (err) {
+        document.getElementById("error").innerText = "Server error: " + err;
+      }
+    };
+
+    document.getElementById("logoutBtn").onclick = () => {
+      authHeader = "";
+      document.getElementById("login").classList.remove("hidden");
+      document.getElementById("dashboard").classList.add("hidden");
+      document.getElementById("error").innerText = "";
+    };
+  </script>
+</body>
+</html>
