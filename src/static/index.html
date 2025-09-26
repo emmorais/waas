@@ -26,8 +26,12 @@
   <!-- Dashboard -->
   <div id="dashboard" class="hidden">
     <h2>Welcome, <span id="user"></span></h2>
-    <p>Your wallet data will appear here...</p>
+    <p>Dashboard:</p>
     <pre id="wallet"></pre>
+    <button id="keygenBtn">Generate Key Pair</button>
+    <input type="text" id="messageInput" placeholder="Enter message to sign" />
+    <button id="signBtn">Sign Message</button>
+    <button id="verifyBtn">Verify Message</button>
     <button id="logoutBtn">Logout</button>
   </div>
 
@@ -41,7 +45,7 @@
       authHeader = "Basic " + btoa(username + ":" + password);
 
       try {
-        let res = await fetch("https://localhost:8443/protected", {
+        let res = await fetch("https://localhost:8443/dashboard", {
           headers: { "Authorization": authHeader }
         });
 

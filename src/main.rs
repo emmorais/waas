@@ -1,25 +1,18 @@
 /// Axum hello world example application.
 
+mod dashboard;
+
 use axum::{
-    extract::FromRequestParts, http::{request::Parts, StatusCode}, response::IntoResponse, routing::get, Json, Router
+    extract::FromRequestParts, http::{request::Parts, StatusCode}, routing::get, Router
 };
 use axum_server::tls_rustls::RustlsConfig;
 use base64::{engine::general_purpose, Engine as _};
-use serde::Serialize;
 use tower_http::services::ServeDir;
 use std::{future::Future, net::SocketAddr};
-use std::pin::Pin;
 
 struct BasicAuth {
     username: String,
     password: String,
-}
-
-// Wallet data (fake for now)
-#[derive(Serialize)]
-struct WalletData {
-    balance: u64,
-    transactions: Vec<String>,
 }
 
 // Implement BasicAuth extractor
@@ -32,7 +25,7 @@ where
     fn from_request_parts<'a, 'b>(
         parts: &'a mut Parts,
         _state: &'b S,
-    ) -> Pin<Box<dyn Future<Output = Result<Self, Self::Rejection>> + Send + 'a>> 
+    ) -> impl Future<Output = Result<Self, <Self as FromRequestParts<S>>::Rejection>> + Send 
     {
         Box::pin(async move {
             let header = match parts.headers.get("authorization") {
@@ -64,23 +57,11 @@ where
     }
 }
 
-// Route handler
-async fn protected(_auth: BasicAuth) -> impl IntoResponse {
-    let wallet = WalletData {
-        balance: 4200,
-        transactions: vec![
-            "Deposit 1000".to_string(),
-            "Withdraw 200".to_string(),
-            "Deposit 3400".to_string(),
-        ],
-    };
-    Json(wallet)
-}
-
+// Route
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
      let app = Router::new()
-        .route("/protected", get(protected))
+        .route("/dashboard", get(dashboard::dashboard))
         // Serve everything under ./static, with index.html support
         .fallback_service(ServeDir::new("src/static").append_index_html_on_directories(true));
 
