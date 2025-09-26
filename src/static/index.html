@@ -67,6 +67,32 @@
       }
     };
 
+    document.getElementById("keygenBtn").onclick = async () => {
+      try {
+        let res = await fetch("https://localhost:8443/keygen", {
+          method: "POST",
+          headers: { 
+            "Authorization": authHeader,
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (!res.ok) {
+          document.getElementById("error").innerText = "Failed to generate keys!";
+          return;
+        }
+
+        let data = await res.json();
+        
+        // Display the key generation result
+        const keyResult = `Key Generation Result:\n${JSON.stringify(data, null, 2)}`;
+        document.getElementById("wallet").innerText = keyResult;
+
+      } catch (err) {
+        document.getElementById("error").innerText = "Key generation error: " + err;
+      }
+    };
+
     document.getElementById("logoutBtn").onclick = () => {
       authHeader = "";
       document.getElementById("login").classList.remove("hidden");
