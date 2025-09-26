@@ -69,6 +69,9 @@
 
     document.getElementById("keygenBtn").onclick = async () => {
       try {
+        // Show loading message
+        document.getElementById("wallet").innerText = "Generating TSS keys... This may take a moment.";
+        
         let res = await fetch("https://localhost:8443/keygen", {
           method: "POST",
           headers: { 
@@ -84,12 +87,30 @@
 
         let data = await res.json();
         
-        // Display the key generation result
-        const keyResult = `Key Generation Result:\n${JSON.stringify(data, null, 2)}`;
+        // Display the key generation result in a more readable format
+        const keyResult = `🔐 TSS Key Generation Result:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Status: ${data.message}
+
+🔑 Public Key: ${data.public_key}
+
+🗝️  Private Key Share: ${data.private_key_share}
+
+🎲 RID: ${data.rid}
+
+⛓️  Chain Code: ${data.chain_code}
+
+👥 Participants: ${data.participants.length} workers
+${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+        
         document.getElementById("wallet").innerText = keyResult;
 
       } catch (err) {
         document.getElementById("error").innerText = "Key generation error: " + err;
+        document.getElementById("wallet").innerText = "Key generation failed. Check the error message above.";
       }
     };
 
