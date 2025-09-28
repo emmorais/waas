@@ -2,6 +2,7 @@
 
 mod dashboard;
 mod keygen;
+mod auxinfo;
 
 use axum::{
     extract::FromRequestParts, http::{request::Parts, StatusCode}, routing::{get, post}, Router
@@ -49,7 +50,7 @@ where
             let username = parts.next().unwrap_or("").to_string();
             let password = parts.next().unwrap_or("").to_string();
 
-            if username == "admin" && password == "secret" {
+            if username == "admin" && password == "admin123" {
                 Ok(BasicAuth { username, password })
             } else {
                 Err((StatusCode::UNAUTHORIZED, "Invalid credentials".into()))
@@ -64,6 +65,7 @@ async fn main() -> anyhow::Result<()> {
      let app = Router::new()
         .route("/dashboard", get(dashboard::dashboard))
         .route("/keygen", post(keygen::keygen))
+        .route("/auxinfo", post(auxinfo::auxinfo))
         // Serve everything under ./static, with index.html support
         .fallback_service(ServeDir::new("src/static").append_index_html_on_directories(true));
 

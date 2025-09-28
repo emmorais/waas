@@ -30,6 +30,7 @@
     <pre id="wallet"></pre>
     <button id="protocolBtn">Run protocol</button>
     <button id="keygenBtn">Generate Key Pair</button>
+    <button id="auxinfoBtn">Generate AuxInfo</button>
     <input type="text" id="messageInput" placeholder="Enter message to sign" />
     <button id="signBtn">Sign Message</button>
     <button id="verifyBtn">Verify Message</button>
@@ -180,6 +181,50 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
       } catch (err) {
         document.getElementById("error").innerText = "Key generation error: " + err;
         document.getElementById("wallet").innerText = "Key generation failed. Check the error message above.";
+      }
+    };
+
+    document.getElementById("auxinfoBtn").onclick = async () => {
+      try {
+        // Show loading message
+        document.getElementById("wallet").innerText = "Generating auxiliary information... This may take a moment.";
+        
+        let res = await fetch("https://localhost:8443/auxinfo", {
+          method: "POST",
+          headers: { 
+            "Authorization": authHeader,
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (!res.ok) {
+          document.getElementById("error").innerText = "Failed to generate auxiliary information!";
+          return;
+        }
+
+        let data = await res.json();
+        
+        // Display the auxinfo generation result
+        const auxinfoResult = `🔧 TSS Auxiliary Information Generation Result:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Status: ${data.message}
+
+📊 AuxInfo Count: ${data.auxinfo_count} auxiliary information sets generated
+
+👥 Participants: ${data.participants.length} workers
+${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
+
+🔧 Description: Auxiliary information includes Paillier encryption keys 
+   and ring-Pedersen parameters needed for TSS operations.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+        
+        document.getElementById("wallet").innerText = auxinfoResult;
+
+      } catch (err) {
+        document.getElementById("error").innerText = "AuxInfo generation error: " + err;
+        document.getElementById("wallet").innerText = "AuxInfo generation failed. Check the error message above.";
       }
     };
 
