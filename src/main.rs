@@ -6,6 +6,7 @@ mod auxinfo;
 mod tshare;
 mod presign;
 mod sign;
+mod logging;
 
 use axum::{
     extract::FromRequestParts, http::{request::Parts, StatusCode}, routing::{get, post}, Router
@@ -65,14 +66,8 @@ where
 // Route
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize tracing with beautiful formatting
-    tracing_subscriber::fmt()
-        .with_env_filter("waas=debug,info")
-        .with_target(false)
-        .with_thread_ids(true)
-        .with_file(true)
-        .with_line_number(true)
-        .init();
+    // Initialize tracing with Zama.ai UI colors
+    logging::init_zama_logging();
 
     tracing::info!(
         service = "TSS-ECDSA Wallet-as-a-Service",
