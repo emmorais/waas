@@ -4,6 +4,7 @@ mod dashboard;
 mod keygen;
 mod auxinfo;
 mod tshare;
+mod presign;
 mod sign;
 
 use axum::{
@@ -69,6 +70,7 @@ async fn main() -> anyhow::Result<()> {
                 .route("/keygen", post(keygen::keygen))
         .route("/auxinfo", post(auxinfo::auxinfo))
         .route("/tshare", post(tshare::tshare))
+        .route("/presign", post(presign::presign))
         .route("/sign", post(sign::sign))
         // Serve everything under ./static, with index.html support
         .fallback_service(ServeDir::new("src/static").append_index_html_on_directories(true));
