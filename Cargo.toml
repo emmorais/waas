@@ -2,6 +2,11 @@
 name = "waas"
 version = "0.1.0"
 edition = "2024"
+default-run = "waas"
+
+[[bin]]
+name = "test_keygen"
+path = "test_keygen.rs"
 
 [dependencies]
 anyhow = "1.0.100"
@@ -10,10 +15,11 @@ axum = "0.8.4"
 axum-server = { version = "0.7.2", features = ["tls-rustls"] }
 base64 = "0.22.1"
 bcrypt = "0.17.1"
+hex = "0.4"
 serde = { version = "1.0.227", features = ["derive"] }
 tokio = { version = "1.47.1", features = ["full"] }
 tower-http = { version = "0.6.6", features = ["fs"] }
-tss-ecdsa = { git = "https://github.com/boltlabs-inc/tss-ecdsa.git" }
+tss-ecdsa = { git = "https://github.com/emmorais/tss-ecdsa.git" }
 uuid = { version = "1.0", features = ["v4"] }
 rand = "0.8"
 tracing = "0.1"

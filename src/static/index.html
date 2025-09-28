@@ -28,6 +28,7 @@
     <h2>Welcome, <span id="user"></span></h2>
     <p>Dashboard:</p>
     <pre id="wallet"></pre>
+    <button id="protocolBtn">Run protocol</button>
     <button id="keygenBtn">Generate Key Pair</button>
     <input type="text" id="messageInput" placeholder="Enter message to sign" />
     <button id="signBtn">Sign Message</button>
@@ -64,6 +65,74 @@
 
       } catch (err) {
         document.getElementById("error").innerText = "Server error: " + err;
+      }
+    };
+
+    document.getElementById("protocolBtn").onclick = async () => {
+      try {
+        // Show loading message
+        document.getElementById("wallet").innerText = "Running complete TSS-ECDSA protocol... This will take several moments.\n\n🔄 Executing: KeyGen → AuxInfo → TShare → PreSign → Sign";
+        
+        let res = await fetch("https://localhost:8443/protocol", {
+          method: "POST",
+          headers: { 
+            "Authorization": authHeader,
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (!res.ok) {
+          document.getElementById("error").innerText = "Failed to run protocol!";
+          return;
+        }
+
+        let data = await res.json();
+        
+        // Display the complete protocol results
+        const protocolResult = `🚀 Complete TSS-ECDSA Protocol Results:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Overall Status: ${data.message}
+
+👥 Participants: ${data.participants.length} workers
+${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔐 1. KEY GENERATION RESULTS:
+   🔑 Public Key: ${data.keygen_results.public_key}
+   🗝️  Private Key Shares: ${data.keygen_results.private_key_shares.length} shares
+${data.keygen_results.private_key_shares.map((share, i) => `      Share ${i + 1}: ${share}`).join('\n')}
+   🎲 RID: ${data.keygen_results.rid}
+   ⛓️  Chain Code: ${data.keygen_results.chain_code}
+
+🔧 2. AUXILIARY INFO RESULTS:
+   📊 Status: ${data.auxinfo_results.status}
+   👤 Participants: ${data.auxinfo_results.participants_count}
+
+🔀 3. THRESHOLD SHARE RESULTS:
+   📈 Status: ${data.tshare_results.status}
+   🎯 Threshold: ${data.tshare_results.threshold}
+
+📝 4. PRESIGN RESULTS:
+   📋 Status: ${data.presign_results.status}
+   📄 Records Generated: ${data.presign_results.records_generated}
+
+✍️  5. SIGNATURE RESULTS:
+   ✅ Status: ${data.sign_results.status}
+   📨 Message Signed: "${data.sign_results.message_signed}"
+   🔏 Signature: ${data.sign_results.signature}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎉 Complete protocol execution successful!
+All phases completed: KeyGen ✓ AuxInfo ✓ TShare ✓ PreSign ✓ Sign ✓`;
+        
+        document.getElementById("wallet").innerText = protocolResult;
+
+      } catch (err) {
+        document.getElementById("error").innerText = "Protocol execution error: " + err;
+        document.getElementById("wallet").innerText = "Protocol execution failed. Check the error message above.";
       }
     };
 
