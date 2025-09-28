@@ -249,9 +249,12 @@ pub async fn sign(Json(request): Json<SignRequest>) -> ResponseJson<SignResponse
 
 async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
     use tss_ecdsa::curve::TestCurve;
+    use crate::keygen::KeygenHelperOutput;
     
-    let mut rng = StdRng::from_entropy();
-    let configs = ParticipantConfig::random_quorum(3, &mut rng)?;
+    // Use a deterministic seed for reproducible configs and keygen
+    const DETERMINISTIC_SEED: [u8; 32] = [42; 32]; // Fixed seed for deterministic behavior
+    let mut deterministic_rng = StdRng::from_seed(DETERMINISTIC_SEED);
+    let configs = ParticipantConfig::random_quorum(3, &mut deterministic_rng)?;
     
     tracing::info!(
         participants = configs.len(),
@@ -260,28 +263,65 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
     );
     
     // Run the full protocol chain to generate presign records
-    // 1. Generate keygen outputs
-    tracing::debug!("📋 Phase 1: Starting key generation protocol");
-    let keygen_start = std::time::Instant::now();
-    
-    use crate::keygen::{keygen_helper, KeygenHelperOutput};
-    let keygen_result: KeygenHelperOutput<TestCurve> = {
-        let keygen_inboxes: HashMap<ParticipantIdentifier, Vec<Message>> = configs
-            .iter()
-            .map(|config| (config.id(), Vec::new()))
-            .collect();
-        keygen_helper(configs.clone(), keygen_inboxes, rng.clone())?
+    // 1. Generate or restore keygen outputs
+    let keygen_result: KeygenHelperOutput<TestCurve> = if is_keygen_completed() {
+        tracing::info!("🔄 Restoring keygen outputs (using deterministic generation)");
+        let keygen_start = std::time::Instant::now();
+        
+        // Use the same deterministic seed for reproducible keygen
+        let mut keygen_rng = StdRng::from_seed(DETERMINISTIC_SEED);
+        
+        use crate::keygen::{keygen_helper, KeygenHelperOutput};
+        let keygen_result: KeygenHelperOutput<TestCurve> = {
+            let keygen_inboxes: HashMap<ParticipantIdentifier, Vec<Message>> = configs
+                .iter()
+                .map(|config| (config.id(), Vec::new()))
+                .collect();
+            keygen_helper(configs.clone(), keygen_inboxes, keygen_rng)?
+        };
+        
+        tracing::info!(
+            duration_ms = keygen_start.elapsed().as_millis(),
+            key_shares = keygen_result.keygen_outputs.len(),
+            "✅ Key generation restored (deterministic regeneration)"
+        );
+        
+        keygen_result
+    } else {
+        tracing::debug!("📋 Phase 1: Starting key generation protocol (first time)");
+        let keygen_start = std::time::Instant::now();
+        
+        // Use deterministic seed for reproducible keygen
+        let mut keygen_rng = StdRng::from_seed(DETERMINISTIC_SEED);
+        
+        use crate::keygen::{keygen_helper, KeygenHelperOutput};
+        let keygen_result: KeygenHelperOutput<TestCurve> = {
+            let keygen_inboxes: HashMap<ParticipantIdentifier, Vec<Message>> = configs
+                .iter()
+                .map(|config| (config.id(), Vec::new()))
+                .collect();
+            keygen_helper(configs.clone(), keygen_inboxes, keygen_rng)?
+        };
+        
+        tracing::info!(
+            duration_ms = keygen_start.elapsed().as_millis(),
+            key_shares = keygen_result.keygen_outputs.len(),
+            "✅ Key generation completed (first time)"
+        );
+
+        // Mark keygen as completed for future use
+        mark_keygen_completed()?;
+        tracing::debug!("💾 Keygen completion marker created");
+        
+        keygen_result
     };
-    
-    tracing::info!(
-        duration_ms = keygen_start.elapsed().as_millis(),
-        key_shares = keygen_result.keygen_outputs.len(),
-        "✅ Key generation completed"
-    );
 
     // 2. Generate auxinfo outputs
     tracing::debug!("🔧 Phase 2: Starting auxiliary info generation");
     let auxinfo_start = std::time::Instant::now();
+    
+    // Use fresh random seed for auxinfo (this can vary between runs)
+    let mut rng = StdRng::from_entropy();
     
     use crate::auxinfo::{auxinfo_helper, AuxInfoHelperOutput};
     let auxinfo_result: AuxInfoHelperOutput<TestCurve> = auxinfo_helper(configs.clone(), rng.clone())?;
@@ -409,6 +449,40 @@ fn load_public_key_for_verification() -> Result<Option<<tss_ecdsa::curve::TestCu
         tracing::warn!("⚠️ No public key file found - verification requires a previous signing operation");
         Ok(None)
     }
+}
+
+// Storage functions for keygen marker
+fn mark_keygen_completed() -> Result<()> {
+    use std::fs;
+    
+    tracing::debug!(
+        storage_path = "keygen_completed.marker",
+        "💾 Creating keygen completion marker"
+    );
+    
+    fs::write("keygen_completed.marker", "1")?;
+    
+    tracing::info!("✅ Keygen completion marker created");
+    
+    Ok(())
+}
+
+fn is_keygen_completed() -> bool {
+    use std::fs;
+    
+    tracing::debug!(
+        storage_path = "keygen_completed.marker",
+        "📂 Checking for keygen completion marker"
+    );
+    
+    let exists = fs::metadata("keygen_completed.marker").is_ok();
+    
+    tracing::debug!(
+        keygen_exists = exists,
+        "🔍 Keygen completion status checked"
+    );
+    
+    exists
 }
 
 pub async fn verify(Json(request): Json<VerifyRequest>) -> ResponseJson<VerifyResponse> {

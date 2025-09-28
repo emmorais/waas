@@ -1980,6 +1980,7 @@ dependencies = [
  "axum-server",
  "base64",
  "bcrypt",
+ "bincode",
  "ecdsa",
  "hex",
  "itertools 0.12.1",
