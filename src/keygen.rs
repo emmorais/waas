@@ -35,6 +35,11 @@ pub fn keygen_helper<C: CurveTrait>(
 ) -> anyhow::Result<KeygenHelperOutput<C>> {
     let quorum_size = configs.len();
     
+    tracing::debug!(
+        quorum_size = quorum_size,
+        "🔧 Setting up keygen participants"
+    );
+    
     // Set up keygen participants
     let keygen_sid = Identifier::random(&mut rng);
     let mut keygen_quorum = configs
@@ -44,6 +49,12 @@ pub fn keygen_helper<C: CurveTrait>(
             Participant::<KeygenParticipant<C>>::from_config(config, keygen_sid, ()).unwrap()
         })
         .collect::<Vec<_>>();
+        
+    tracing::debug!(
+        session_id = %keygen_sid,
+        participants_created = keygen_quorum.len(),
+        "✅ Keygen participants initialized"
+    );
 
     let mut keygen_outputs: HashMap<
         ParticipantIdentifier,
@@ -51,21 +62,42 @@ pub fn keygen_helper<C: CurveTrait>(
     > = HashMap::new();
 
     // Initialize keygen for all participants
+    tracing::debug!("📨 Initializing keygen messages for all participants");
     for participant in &keygen_quorum {
         let inbox = inboxes.get_mut(&participant.id()).unwrap();
         inbox.push(participant.initialize_message()?);
     }
+    tracing::debug!("✅ Initial messages sent to all participants");
 
     // Run keygen until all parties have outputs
+    tracing::debug!("🔄 Starting keygen message exchange protocol");
+    let exchange_start = std::time::Instant::now();
+    let mut round_count = 0;
+    
     while keygen_outputs.len() < quorum_size {
         let output = process_random_message(&mut keygen_quorum, &mut inboxes, &mut rng)?;
 
         if let Some((pid, output)) = output {
+            round_count += 1;
+            tracing::trace!(
+                participant_id = %pid,
+                round = round_count,
+                outputs_collected = keygen_outputs.len() + 1,
+                total_required = quorum_size,
+                "📨 Collected keygen output from participant"
+            );
             // Save the output, and make sure this participant didn't already return an
             // output.
             assert!(keygen_outputs.insert(pid, output).is_none());
         }
     }
+    
+    tracing::info!(
+        exchange_duration_ms = exchange_start.elapsed().as_millis(),
+        total_rounds = round_count,
+        outputs_collected = keygen_outputs.len(),
+        "✅ Keygen message exchange completed"
+    );
 
     // Keygen is done! Make sure there are no more messages.
     assert!(inboxes_are_empty(&inboxes));
@@ -124,10 +156,27 @@ fn inboxes_are_empty(inboxes: &HashMap<ParticipantIdentifier, Vec<Message>>) -> 
 
 // Main keygen endpoint
 pub async fn keygen(_auth: crate::BasicAuth) -> impl IntoResponse {
+    tracing::info!("🔑 Starting TSS key generation protocol");
+    let start_time = std::time::Instant::now();
+    
     match run_tss_keygen().await {
-        Ok(response) => Json(response),
+        Ok(response) => {
+            let duration = start_time.elapsed();
+            tracing::info!(
+                participants = response.participants.len(),
+                public_key_preview = %response.public_key.get(..16.min(response.public_key.len())).unwrap_or(""),
+                duration_ms = duration.as_millis(),
+                "✅ TSS key generation completed successfully"
+            );
+            Json(response)
+        },
         Err(e) => {
-            tracing::error!("Key generation failed: {}", e);
+            let duration = start_time.elapsed();
+            tracing::error!(
+                error = %e,
+                duration_ms = duration.as_millis(),
+                "❌ TSS key generation failed"
+            );
             Json(KeygenResponse {
                 public_key: "error".to_string(),
                 private_key_share: "error".to_string(),
@@ -143,9 +192,20 @@ pub async fn keygen(_auth: crate::BasicAuth) -> impl IntoResponse {
 async fn run_tss_keygen() -> anyhow::Result<KeygenResponse> {
     let num_workers = NUMBER_OF_WORKERS;
     
+    tracing::debug!(
+        participants = num_workers,
+        threshold = 2,
+        "🚀 Initializing TSS keygen participants"
+    );
+    
     // Generate participant configurations
     let mut rng = StdRng::from_entropy();
     let configs = ParticipantConfig::random_quorum(num_workers, &mut rng)?;
+    
+    tracing::debug!(
+        configs_generated = configs.len(),
+        "✅ Participant configurations generated"
+    );
 
     // Initialize empty inboxes for all participants
     let inboxes: HashMap<ParticipantIdentifier, Vec<Message>> = configs
@@ -153,8 +213,17 @@ async fn run_tss_keygen() -> anyhow::Result<KeygenResponse> {
         .map(|config| (config.id(), Vec::new()))
         .collect();
 
+    tracing::debug!("📋 Running TSS keygen protocol");
+    let protocol_start = std::time::Instant::now();
+    
     // Call keygen_helper with the configs and inboxes
     let keygen_result = keygen_helper::<TestCurve>(configs.clone(), inboxes, rng)?;
+    
+    tracing::info!(
+        protocol_duration_ms = protocol_start.elapsed().as_millis(),
+        outputs_generated = keygen_result.keygen_outputs.len(),
+        "✅ TSS keygen protocol completed"
+    );
 
     // Extract the first participant's output for response
     let first_participant_id = configs[0].id();

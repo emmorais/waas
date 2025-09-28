@@ -65,9 +65,26 @@ where
 // Route
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-     let app = Router::new()
+    // Initialize tracing with beautiful formatting
+    tracing_subscriber::fmt()
+        .with_env_filter("waas=debug,info")
+        .with_target(false)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
+        .init();
+
+    tracing::info!(
+        service = "TSS-ECDSA Wallet-as-a-Service",
+        version = env!("CARGO_PKG_VERSION"),
+        "🚀 Starting TSS-ECDSA server"
+    );
+
+    // Build application routes with logging
+    tracing::debug!("📋 Configuring application routes");
+    let app = Router::new()
         .route("/dashboard", get(dashboard::dashboard))
-                .route("/keygen", post(keygen::keygen))
+        .route("/keygen", post(keygen::keygen))
         .route("/auxinfo", post(auxinfo::auxinfo))
         .route("/tshare", post(tshare::tshare))
         .route("/presign", post(presign::presign))
@@ -76,17 +93,66 @@ async fn main() -> anyhow::Result<()> {
         // Serve everything under ./static, with index.html support
         .fallback_service(ServeDir::new("src/static").append_index_html_on_directories(true));
 
-    // Load TLS cert and key (PEM files)
-    // You can also build RustlsConfig from bytes or from a certificate store.
-    let tls = RustlsConfig::from_pem_file("cert.pem", "key.pem").await?;
-    let addr: SocketAddr = "0.0.0.0:8443".parse()?; // use 443 in production if you control the machine
+    tracing::info!(
+        routes_count = 7,
+        routes = "/dashboard, /keygen, /auxinfo, /tshare, /presign, /sign, /verify",
+        static_content = "src/static",
+        "✅ Application routes configured"
+    );
 
-    println!("Listening on https://localhost:8443");
+    // Load TLS cert and key (PEM files)
+    tracing::debug!(
+        cert_file = "cert.pem",
+        key_file = "key.pem",
+        "🔐 Loading TLS configuration"
+    );
+    
+    let tls = RustlsConfig::from_pem_file("cert.pem", "key.pem").await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                cert_file = "cert.pem",
+                key_file = "key.pem",
+                "❌ Failed to load TLS configuration"
+            );
+            e
+        })?;
+
+    tracing::info!("✅ TLS configuration loaded successfully");
+
+    let addr: SocketAddr = "0.0.0.0:8443".parse()?;
+    
+    tracing::info!(
+        address = %addr,
+        protocol = "HTTPS",
+        tls_enabled = true,
+        "🌐 Server configuration ready"
+    );
+
+    println!("\n🎯 TSS-ECDSA Wallet-as-a-Service Server");
+    println!("📍 Listening on https://localhost:8443");
+    println!("🔐 TLS encryption enabled");
+    println!("🔑 Authentication: admin/admin123");
+    println!("📊 Dashboard: https://localhost:8443/dashboard");
+    println!("\n✨ Ready to process TSS operations!");
+
+    tracing::info!(
+        bind_address = %addr,
+        "🚀 Starting HTTPS server with TLS"
+    );
 
     // Serve with TLS (axum-server wraps hyper + rustls neatly)
     axum_server::bind_rustls(addr, tls)
         .serve(app.into_make_service())
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                "❌ Server failed to start"
+            );
+            e
+        })?;
 
+    tracing::info!("👋 Server shutdown completed");
     Ok(())
 }

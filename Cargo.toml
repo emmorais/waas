@@ -23,6 +23,7 @@ tss-ecdsa = { git = "https://github.com/emmorais/tss-ecdsa.git", rev = "be80421"
 uuid = { version = "1.0", features = ["v4"] }
 rand = "0.8"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 itertools = "0.12"
 sha3 = "0.10.8"
 ecdsa = "0.16.9"

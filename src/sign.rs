@@ -61,12 +61,21 @@ pub fn sign_helper(
     let quorum_real = configs.len();
     let sign_sid = Identifier::random(&mut rng);
 
+    tracing::debug!(
+        quorum_size = quorum_real,
+        threshold = sign_helper_input.threshold,
+        message_length = message.len(),
+        session_id = %sign_sid,
+        "🔐 Initializing signing session"
+    );
+
     let mut presign_outputs = sign_helper_input.presign_outputs;
     let public_key_shares = sign_helper_input.public_key_shares;
     let threshold = sign_helper_input.threshold;
     let mut inboxes = sign_helper_input.inboxes;
 
     // Make signing participants
+    tracing::debug!("👥 Creating signing participants");
     let mut sign_quorum = configs
         .clone()
         .into_iter()
@@ -76,6 +85,11 @@ pub fn sign_helper(
             Participant::<SignParticipant<tss_ecdsa::curve::TestCurve>>::from_config(config, sign_sid, input)
         })
         .collect::<Result<Vec<_>, _>>()?;
+        
+    tracing::debug!(
+        participants_created = sign_quorum.len(),
+        "✅ Signing participants initialized"
+    );
 
     // Ensure all participants have inboxes
     for participant in &sign_quorum {
@@ -92,18 +106,45 @@ pub fn sign_helper(
     }
 
     // Run signing protocol
+    tracing::debug!("🔄 Starting signing protocol message exchange");
+    let protocol_start = std::time::Instant::now();
+    let mut round_count = 0;
+    
     while sign_outputs.len() < quorum_real {
         let output = process_random_message(&mut sign_quorum, &mut inboxes, &mut rng)?;
 
-        if let Some((_pid, output)) = output {
+        if let Some((pid, output)) = output {
+            round_count += 1;
+            tracing::trace!(
+                participant_id = %pid,
+                round = round_count,
+                outputs_collected = sign_outputs.len() + 1,
+                total_required = quorum_real,
+                "📨 Collected signature output from participant"
+            );
             sign_outputs.push(output);
         }
     }
+    
+    tracing::info!(
+        protocol_duration_ms = protocol_start.elapsed().as_millis(),
+        total_rounds = round_count,
+        outputs_collected = sign_outputs.len(),
+        "✅ Signing protocol completed successfully"
+    );
 
     // Return the first signature (they should all be the same)
     // Since we're using TestCurve which defaults to K256, we know the signature type
     use std::ops::Deref;
-    Ok(sign_outputs[0].deref().to_der().as_bytes().to_vec())
+    let signature_bytes = sign_outputs[0].deref().to_der().as_bytes().to_vec();
+    
+    tracing::debug!(
+        signature_length = signature_bytes.len(),
+        signature_hex = hex::encode(&signature_bytes[..8.min(signature_bytes.len())]),
+        "🔏 Generated DER signature (showing first 8 bytes)"
+    );
+    
+    Ok(signature_bytes)
 }
 
 fn process_random_message<R: rand::RngCore + rand::CryptoRng>(
@@ -152,14 +193,51 @@ fn process_random_message<R: rand::RngCore + rand::CryptoRng>(
 }
 
 pub async fn sign(Json(request): Json<SignRequest>) -> ResponseJson<SignResponse> {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    let mut hasher = DefaultHasher::new();
+    request.message.hash(&mut hasher);
+    let message_hash = format!("{:x}", hasher.finish());
+    
+    tracing::info!(
+        message = %request.message,
+        message_length = request.message.len(),
+        message_hash = %message_hash,
+        "🔐 Starting TSS signing process"
+    );
+
+    let start_time = std::time::Instant::now();
+    
     match run_tss_sign(&request.message).await {
-        Ok(signature) => ResponseJson(SignResponse {
-            signature: hex::encode(signature),
-            success: true,
-            message: format!("Successfully signed message: '{}'", request.message),
-        }),
+        Ok(signature) => {
+            let duration = start_time.elapsed();
+            let sig_hex = hex::encode(&signature);
+            
+            tracing::info!(
+                message = %request.message,
+                signature = %sig_hex,
+                signature_length = signature.len(),
+                duration_ms = duration.as_millis(),
+                "✅ TSS signing completed successfully"
+            );
+
+            ResponseJson(SignResponse {
+                signature: sig_hex,
+                success: true,
+                message: format!("Successfully signed message: '{}'", request.message),
+            })
+        },
         Err(e) => {
-            tracing::error!("Signing failed: {}", e);
+            let duration = start_time.elapsed();
+            
+            tracing::error!(
+                message = %request.message,
+                error = %e,
+                duration_ms = duration.as_millis(),
+                "❌ TSS signing failed"
+            );
+            
             ResponseJson(SignResponse {
                 signature: String::new(),
                 success: false,
@@ -175,8 +253,17 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
     let mut rng = StdRng::from_entropy();
     let configs = ParticipantConfig::random_quorum(3, &mut rng)?;
     
+    tracing::info!(
+        participants = configs.len(),
+        threshold = 2,
+        "🚀 Initializing TSS protocol participants"
+    );
+    
     // Run the full protocol chain to generate presign records
     // 1. Generate keygen outputs
+    tracing::debug!("📋 Phase 1: Starting key generation protocol");
+    let keygen_start = std::time::Instant::now();
+    
     use crate::keygen::{keygen_helper, KeygenHelperOutput};
     let keygen_result: KeygenHelperOutput<TestCurve> = {
         let keygen_inboxes: HashMap<ParticipantIdentifier, Vec<Message>> = configs
@@ -185,10 +272,25 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
             .collect();
         keygen_helper(configs.clone(), keygen_inboxes, rng.clone())?
     };
+    
+    tracing::info!(
+        duration_ms = keygen_start.elapsed().as_millis(),
+        key_shares = keygen_result.keygen_outputs.len(),
+        "✅ Key generation completed"
+    );
 
     // 2. Generate auxinfo outputs
+    tracing::debug!("🔧 Phase 2: Starting auxiliary info generation");
+    let auxinfo_start = std::time::Instant::now();
+    
     use crate::auxinfo::{auxinfo_helper, AuxInfoHelperOutput};
     let auxinfo_result: AuxInfoHelperOutput<TestCurve> = auxinfo_helper(configs.clone(), rng.clone())?;
+    
+    tracing::info!(
+        duration_ms = auxinfo_start.elapsed().as_millis(),
+        auxinfo_outputs = auxinfo_result.auxinfo_outputs.len(),
+        "✅ Auxiliary info generation completed"
+    );
 
     // Extract needed data from keygen before moving it
     let first_keygen_output = keygen_result.keygen_outputs.values().next().unwrap();
@@ -197,6 +299,9 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
     let chain_code = *first_keygen_output.chain_code();
 
     // 3. Generate presign outputs
+    tracing::debug!("📝 Phase 3: Starting presignature generation");
+    let presign_start = std::time::Instant::now();
+    
     use crate::presign::{presign_helper, PresignHelperOutput};
     let presign_result: PresignHelperOutput<TestCurve> = {
         let mut inboxes = auxinfo_result.inboxes;
@@ -208,6 +313,12 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
             rng.clone()
         )?
     };
+    
+    tracing::info!(
+        duration_ms = presign_start.elapsed().as_millis(),
+        presign_records = presign_result.presign_outputs.len(),
+        "✅ Presignature generation completed"
+    );
     
     // Initialize fresh inboxes for all participants
     let sign_inboxes: HashMap<ParticipantIdentifier, Vec<Message>> = configs
@@ -226,10 +337,23 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
     };
 
     // Store the public key for verification use
+    tracing::debug!("💾 Storing public key for future verification");
     store_public_key_for_verification(&saved_public_key)?;
+    tracing::debug!("✅ Public key stored successfully");
 
     // Run the signing protocol
-    sign_helper(configs, sign_helper_input, message.as_bytes(), rng)
+    tracing::debug!("✍️ Phase 4: Starting signature generation");
+    let sign_start = std::time::Instant::now();
+    
+    let signature_bytes = sign_helper(configs, sign_helper_input, message.as_bytes(), rng)?;
+    
+    tracing::info!(
+        duration_ms = sign_start.elapsed().as_millis(),
+        signature_size = signature_bytes.len(),
+        "✅ Signature generation completed"
+    );
+    
+    Ok(signature_bytes)
 }
 
 // Simple storage mechanism for the public key (in a real app, this would be in a database)
@@ -238,36 +362,106 @@ fn store_public_key_for_verification(public_key: &<tss_ecdsa::curve::TestCurve a
     
     // Convert public key to bytes for storage
     let public_key_bytes = public_key.to_sec1_bytes();
-    fs::write("public_key.bin", public_key_bytes)?;
+    
+    tracing::debug!(
+        key_size_bytes = public_key_bytes.len(),
+        storage_path = "public_key.bin",
+        "💾 Storing public key to filesystem"
+    );
+    
+    fs::write("public_key.bin", &public_key_bytes)?;
+    
+    tracing::info!(
+        key_size_bytes = public_key_bytes.len(),
+        "✅ Public key stored successfully for future verification"
+    );
+    
     Ok(())
 }
 
 fn load_public_key_for_verification() -> Result<Option<<tss_ecdsa::curve::TestCurve as CurveTrait>::VerifyingKey>> {
     use std::fs;
     
+    tracing::debug!(
+        storage_path = "public_key.bin",
+        "📂 Attempting to load public key from filesystem"
+    );
+    
     if let Ok(bytes) = fs::read("public_key.bin") {
+        tracing::debug!(
+            key_size_bytes = bytes.len(),
+            "✅ Public key file found, reconstructing verifying key"
+        );
+        
         // Reconstruct the verifying key from bytes
         let verifying_key = <tss_ecdsa::curve::TestCurve as CurveTrait>::VerifyingKey::from_sec1_bytes(&bytes)
-            .map_err(|_| anyhow::anyhow!("Failed to reconstruct public key from bytes"))?;
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    "❌ Failed to reconstruct public key from stored bytes"
+                );
+                anyhow::anyhow!("Failed to reconstruct public key from bytes")
+            })?;
+            
+        tracing::debug!("✅ Public key reconstructed successfully");
         Ok(Some(verifying_key))
     } else {
+        tracing::warn!("⚠️ No public key file found - verification requires a previous signing operation");
         Ok(None)
     }
 }
 
 pub async fn verify(Json(request): Json<VerifyRequest>) -> ResponseJson<VerifyResponse> {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    let mut hasher = DefaultHasher::new();
+    request.message.hash(&mut hasher);
+    let message_hash = format!("{:x}", hasher.finish());
+    
+    tracing::info!(
+        message = %request.message,
+        message_length = request.message.len(),
+        message_hash = %message_hash,
+        signature_length = request.signature.len(),
+        signature_preview = %request.signature.get(..16.min(request.signature.len())).unwrap_or(""),
+        "🔍 Starting signature verification"
+    );
+
+    let start_time = std::time::Instant::now();
+    
     match run_verification(&request.message, &request.signature).await {
-        Ok(is_valid) => ResponseJson(VerifyResponse {
-            valid: is_valid,
-            success: true,
-            message: if is_valid {
-                format!("✅ Signature is valid for message: '{}'", request.message)
-            } else {
-                format!("❌ Signature is NOT valid for message: '{}'", request.message)
-            },
-        }),
+        Ok(is_valid) => {
+            let duration = start_time.elapsed();
+            
+            tracing::info!(
+                message = %request.message,
+                signature_valid = is_valid,
+                duration_ms = duration.as_millis(),
+                result = if is_valid { "VALID" } else { "INVALID" },
+                "🔍 Signature verification completed"
+            );
+
+            ResponseJson(VerifyResponse {
+                valid: is_valid,
+                success: true,
+                message: if is_valid {
+                    format!("✅ Signature is valid for message: '{}'", request.message)
+                } else {
+                    format!("❌ Signature is NOT valid for message: '{}'", request.message)
+                },
+            })
+        },
         Err(e) => {
-            tracing::error!("Verification failed: {}", e);
+            let duration = start_time.elapsed();
+            
+            tracing::error!(
+                message = %request.message,
+                error = %e,
+                duration_ms = duration.as_millis(),
+                "❌ Signature verification failed with error"
+            );
+            
             ResponseJson(VerifyResponse {
                 valid: false,
                 success: false,
@@ -279,25 +473,45 @@ pub async fn verify(Json(request): Json<VerifyRequest>) -> ResponseJson<VerifyRe
 
 async fn run_verification(message: &str, signature_hex: &str) -> anyhow::Result<bool> {
     // Load the stored public key
+    tracing::debug!("📂 Loading stored public key for verification");
     let public_key = load_public_key_for_verification()?
         .ok_or_else(|| anyhow::anyhow!("No public key found. Please run the signing protocol first to generate a key."))?;
+    tracing::debug!("✅ Public key loaded successfully");
 
     // Decode the signature from hex
+    tracing::debug!(
+        signature_hex_length = signature_hex.len(),
+        "🔓 Decoding signature from hex format"
+    );
     let signature_bytes = hex::decode(signature_hex)
         .map_err(|_| anyhow::anyhow!("Invalid signature format. Expected hex string."))?;
+    tracing::debug!(
+        signature_bytes_length = signature_bytes.len(),
+        "✅ Signature decoded from hex"
+    );
 
     // Parse the DER-encoded signature using k256's from_der method
+    tracing::debug!("📋 Parsing DER-encoded signature");
     use k256::ecdsa::Signature as K256Signature;
     let k256_signature = K256Signature::from_der(&signature_bytes)
         .map_err(|_| anyhow::anyhow!("Failed to parse DER signature"))?;
+    tracing::debug!("✅ DER signature parsed successfully");
     
     // Extract r and s scalars from the k256 signature to recreate TSS signature
+    tracing::debug!("🔢 Extracting r and s scalars from k256 signature");
     let (r_scalar, s_scalar) = k256_signature.split_scalars();
     
     // Convert scalars to BigNumbers for TSS signature creation
     use tss_ecdsa::curve::{TestCurve, ScalarTrait};
     let r_bytes = r_scalar.to_bytes();
     let s_bytes = s_scalar.to_bytes();
+    
+    tracing::debug!(
+        r_scalar_length = r_bytes.len(),
+        s_scalar_length = s_bytes.len(),
+        "🔄 Converting scalars to TSS format"
+    );
+    
     // Use the TSS library's BigNumber type (accessed through the curve trait)
     let r_scalar_tss = <TestCurve as CurveTrait>::Scalar::from_repr(r_bytes.to_vec());
     let s_scalar_tss = <TestCurve as CurveTrait>::Scalar::from_repr(s_bytes.to_vec());
@@ -305,17 +519,39 @@ async fn run_verification(message: &str, signature_hex: &str) -> anyhow::Result<
     let s_bn = <TestCurve as CurveTrait>::scalar_to_bn(&s_scalar_tss);
     
     // Create TSS signature using from_scalars
+    tracing::debug!("🏗️ Reconstructing TSS signature from scalars");
     use tss_ecdsa::curve::SignatureTrait;
     let signature = <tss_ecdsa::curve::TestCurve as CurveTrait>::ECDSASignature::from_scalars(&r_bn, &s_bn)
         .map_err(|_| anyhow::anyhow!("Failed to create TSS signature from scalars"))?;
+    tracing::debug!("✅ TSS signature reconstructed successfully");
 
     // Create the message digest (same as used in signing)
+    tracing::debug!("🏷️ Computing message digest using Keccak256");
     use sha3::{Digest, Keccak256};
     let digest = Keccak256::new_with_prefix(message.as_bytes());
+    tracing::debug!("✅ Message digest computed");
 
     // Verify the signature
+    tracing::debug!("🔍 Performing cryptographic signature verification");
+    let verification_start = std::time::Instant::now();
+    
     match public_key.verify_signature(digest, signature) {
-        Ok(_) => Ok(true),
-        Err(_) => Ok(false),
+        Ok(_) => {
+            let verification_duration = verification_start.elapsed();
+            tracing::debug!(
+                verification_duration_us = verification_duration.as_micros(),
+                "✅ Cryptographic verification succeeded"
+            );
+            Ok(true)
+        },
+        Err(e) => {
+            let verification_duration = verification_start.elapsed();
+            tracing::debug!(
+                verification_duration_us = verification_duration.as_micros(),
+                error = %e,
+                "❌ Cryptographic verification failed"
+            );
+            Ok(false)
+        }
     }
 }
