@@ -3,6 +3,7 @@
 mod dashboard;
 mod keygen;
 mod auxinfo;
+mod tshare;
 
 use axum::{
     extract::FromRequestParts, http::{request::Parts, StatusCode}, routing::{get, post}, Router
@@ -66,6 +67,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/dashboard", get(dashboard::dashboard))
         .route("/keygen", post(keygen::keygen))
         .route("/auxinfo", post(auxinfo::auxinfo))
+        .route("/tshare", post(tshare::tshare))
         // Serve everything under ./static, with index.html support
         .fallback_service(ServeDir::new("src/static").append_index_html_on_directories(true));
 
