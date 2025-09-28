@@ -1,51 +1,469 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Wallet Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TSS Wallet - Threshold Signature Service</title>
   <style>
-    body { font-family: sans-serif; margin: 2em; }
-    .hidden { display: none; }
-    .error { color: red; }
-    input { margin: 0.3em 0; padding: 0.5em; }
-    button { padding: 0.5em 1em; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+    }
+
+    .container {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+      padding: 40px;
+      max-width: 900px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .wallet-header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .wallet-logo {
+      font-size: 3rem;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .wallet-title {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 5px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .wallet-subtitle {
+      color: #666;
+      font-size: 1rem;
+    }
+
+    .login-form {
+      background: #fff;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e1e5e9;
+      border-radius: 10px;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      background: #f8f9fa;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #667eea;
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      width: 100%;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-secondary {
+      background: linear-gradient(135deg, #f093fb, #f5576c);
+      color: white;
+      margin: 5px;
+    }
+
+    .btn-secondary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(240, 147, 251, 0.3);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #4facfe, #00f2fe);
+      color: white;
+      margin: 5px;
+    }
+
+    .btn-success:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(79, 172, 254, 0.3);
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, #fa709a, #fee140);
+      color: white;
+      margin: 5px;
+    }
+
+    .btn-warning:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(250, 112, 154, 0.3);
+    }
+
+    .btn-info {
+      background: linear-gradient(135deg, #a8edea, #fed6e3);
+      color: #333;
+      margin: 5px;
+    }
+
+    .btn-info:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(168, 237, 234, 0.3);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .error {
+      background: linear-gradient(135deg, #ff9a9e, #fecfef);
+      color: #721c24;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .dashboard {
+      background: #fff;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    }
+
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #f1f3f5;
+    }
+
+    .welcome-text {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    .message-input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .message-input-group .form-input {
+      flex: 1;
+      min-width: 250px;
+    }
+
+    .wallet-display {
+      background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+      border: none;
+      border-radius: 15px;
+      padding: 25px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 400px;
+      overflow-y: auto;
+      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.05);
+      color: #2d3748;
+    }
+
+    /* Loading Animation */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(102, 126, 234, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(10px);
+    }
+
+    .loading-circle {
+      width: 80px;
+      height: 80px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    .loading-text {
+      color: white;
+      font-size: 1.2rem;
+      font-weight: 600;
+      text-align: center;
+      max-width: 400px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Pulse Animation for buttons */
+    .btn-pulse {
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(102, 126, 234, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0); }
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .container {
+        margin: 20px;
+        padding: 20px;
+        width: calc(100% - 40px);
+      }
+
+      .controls-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      }
+
+      .message-input-group {
+        flex-direction: column;
+      }
+
+      .message-input-group .form-input {
+        min-width: auto;
+      }
+    }
+
+    /* Success/Error states for wallet display */
+    .wallet-display.success {
+      border-left: 5px solid #28a745;
+    }
+
+    .wallet-display.error {
+      border-left: 5px solid #dc3545;
+    }
   </style>
 </head>
 <body>
-  <h1>Wallet Service</h1>
-
-  <!-- Login form -->
-  <div id="login">
-    <h2>Login</h2>
-    <p class="error" id="error"></p>
-    <input type="text" id="username" placeholder="Username" /><br/>
-    <input type="password" id="password" placeholder="Password" /><br/>
-    <button id="loginBtn">Login</button>
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-circle"></div>
+    <div class="loading-text" id="loadingText">Processing your request...</div>
   </div>
 
-  <!-- Dashboard -->
-  <div id="dashboard" class="hidden">
-    <h2>Welcome, <span id="user"></span></h2>
-    <p>Dashboard:</p>
-    <pre id="wallet"></pre>
-    <button id="protocolBtn">Run protocol</button>
-    <button id="keygenBtn">Generate Key Pair</button>
-    <button id="auxinfoBtn">Generate AuxInfo</button>
-    <button id="tshareBtn">Generate Tshare</button>
-    <button id="presignBtn">Generate Presign</button>
-    <input type="text" id="messageInput" placeholder="Enter message to sign" />
-    <button id="signBtn">Sign Message</button>
-    <button id="verifyBtn">Verify Message</button>
-    <button id="logoutBtn">Logout</button>
+  <div class="container">
+    <!-- Login Section -->
+    <div id="login">
+      <div class="wallet-header">
+        <div class="wallet-logo">🔐</div>
+        <h1 class="wallet-title">TSS Wallet</h1>
+        <p class="wallet-subtitle">Threshold Signature Service - Secure Multi-Party Cryptography</p>
+      </div>
+
+      <div class="login-form">
+        <div class="error hidden" id="error"></div>
+        
+        <div class="form-group">
+          <label class="form-label" for="username">Username</label>
+          <input type="text" id="username" class="form-input" placeholder="Enter your username" />
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input type="password" id="password" class="form-input" placeholder="Enter your password" />
+        </div>
+        
+        <button id="loginBtn" class="btn btn-primary">
+          🚀 Access Wallet
+        </button>
+      </div>
+      
+      <div style="text-align: center; margin-top: 20px; color: #666;">
+        <small>💡 Default credentials: admin / admin123</small>
+      </div>
+    </div>
+
+    <!-- Dashboard Section -->
+    <div id="dashboard" class="hidden">
+      <div class="dashboard">
+        <div class="dashboard-header">
+          <div class="welcome-text">
+            👋 Welcome, <span id="user"></span>
+          </div>
+          <button id="logoutBtn" class="btn btn-secondary">
+            🚪 Logout
+          </button>
+        </div>
+
+        <!-- Protocol Controls -->
+        <div class="controls-grid">
+          <button id="protocolBtn" class="btn btn-primary">
+            ⚡ Run Complete Protocol
+          </button>
+          <button id="keygenBtn" class="btn btn-success">
+            🔑 Generate Keys
+          </button>
+          <button id="auxinfoBtn" class="btn btn-info">
+            🔧 Generate AuxInfo
+          </button>
+          <button id="tshareBtn" class="btn btn-warning">
+            🔀 Generate TShare
+          </button>
+          <button id="presignBtn" class="btn btn-secondary">
+            📝 Generate Presign
+          </button>
+        </div>
+
+        <!-- Message Operations -->
+        <div class="message-input-group">
+          <input type="text" id="messageInput" class="form-input" placeholder="💬 Enter message to sign or verify..." />
+          <button id="signBtn" class="btn btn-success">
+            ✍️ Sign Message
+          </button>
+          <button id="verifyBtn" class="btn btn-info">
+            🔍 Verify Message
+          </button>
+        </div>
+
+        <!-- Wallet Display -->
+        <div id="wallet" class="wallet-display">
+          🎯 Welcome to your TSS Wallet Dashboard!
+          
+          📋 Available Operations:
+          • Generate cryptographic keys using threshold signatures
+          • Sign messages with distributed cryptography
+          • Verify signatures using stored public keys
+          • Run complete TSS protocol chains
+          
+          🔐 Security Features:
+          • No single point of failure
+          • Threshold cryptography (2-of-3)
+          • Secure multi-party computation
+          • Zero-knowledge proofs
+          
+          💡 Get started by generating keys or running the complete protocol!
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
     let authHeader = "";
 
+    // Utility functions for loading animations
+    function showLoading(text = "Processing your request...") {
+      document.getElementById("loadingText").innerText = text;
+      document.getElementById("loadingOverlay").classList.remove("hidden");
+    }
+
+    function hideLoading() {
+      document.getElementById("loadingOverlay").classList.add("hidden");
+    }
+
+    function showError(message) {
+      const errorElement = document.getElementById("error");
+      errorElement.innerText = message;
+      errorElement.classList.remove("hidden");
+      setTimeout(() => {
+        errorElement.classList.add("hidden");
+      }, 5000);
+    }
+
+    function updateWalletDisplay(content, isSuccess = true) {
+      const walletElement = document.getElementById("wallet");
+      walletElement.innerText = content;
+      walletElement.className = `wallet-display ${isSuccess ? 'success' : 'error'}`;
+    }
+
+    // Login functionality
     document.getElementById("loginBtn").onclick = async () => {
       const username = document.getElementById("username").value;
       const password = document.getElementById("password").value;
 
+      if (!username || !password) {
+        showError("Please enter both username and password!");
+        return;
+      }
+
+      showLoading("🔐 Authenticating your credentials...");
       authHeader = "Basic " + btoa(username + ":" + password);
 
       try {
@@ -54,27 +472,44 @@
         });
 
         if (!res.ok) {
-          document.getElementById("error").innerText = "Invalid credentials!";
+          hideLoading();
+          showError("❌ Invalid credentials! Please try again.");
           return;
         }
 
         let data = await res.json();
+        hideLoading();
 
-        // Show dashboard
+        // Show dashboard with smooth transition
         document.getElementById("login").classList.add("hidden");
         document.getElementById("dashboard").classList.remove("hidden");
         document.getElementById("user").innerText = username;
-        document.getElementById("wallet").innerText = JSON.stringify(data, null, 2);
+        
+        updateWalletDisplay(`🎉 Welcome to your TSS Wallet, ${username}!
+
+🔐 Authentication successful!
+📊 Dashboard loaded successfully
+⚡ Ready to perform threshold signature operations
+
+🎯 Your secure wallet is now active and ready to use.
+Select any operation from the controls above to get started!`, true);
 
       } catch (err) {
-        document.getElementById("error").innerText = "Server error: " + err;
+        hideLoading();
+        showError("🔌 Connection error: " + err.message);
       }
     };
 
+    // Allow Enter key to login
+    document.getElementById("password").addEventListener("keypress", function(event) {
+      if (event.key === "Enter") {
+        document.getElementById("loginBtn").click();
+      }
+    });
+
     document.getElementById("protocolBtn").onclick = async () => {
       try {
-        // Show loading message
-        document.getElementById("wallet").innerText = "Running complete TSS-ECDSA protocol... This will take several moments.\n\n🔄 Executing: KeyGen → AuxInfo → TShare → PreSign → Sign";
+        showLoading("⚡ Running complete TSS-ECDSA protocol...\n\n🔄 Executing: KeyGen → AuxInfo → TShare → PreSign → Sign\n\nThis may take several moments...");
         
         let res = await fetch("https://localhost:8443/protocol", {
           method: "POST",
@@ -84,8 +519,11 @@
           }
         });
 
+        hideLoading();
+
         if (!res.ok) {
-          document.getElementById("error").innerText = "Failed to run protocol!";
+          showError("❌ Failed to run complete protocol!");
+          updateWalletDisplay("❌ Complete protocol execution failed. Please check the server connection and try again.", false);
           return;
         }
 
@@ -131,18 +569,18 @@ ${data.keygen_results.private_key_shares.map((share, i) => `      Share ${i + 1}
 🎉 Complete protocol execution successful!
 All phases completed: KeyGen ✓ AuxInfo ✓ TShare ✓ PreSign ✓ Sign ✓`;
         
-        document.getElementById("wallet").innerText = protocolResult;
+        updateWalletDisplay(protocolResult, true);
 
       } catch (err) {
-        document.getElementById("error").innerText = "Protocol execution error: " + err;
-        document.getElementById("wallet").innerText = "Protocol execution failed. Check the error message above.";
+        hideLoading();
+        showError("⚠️ Protocol execution error: " + err.message);
+        updateWalletDisplay("❌ Complete protocol execution failed. Please check the server connection and try again.", false);
       }
     };
 
     document.getElementById("keygenBtn").onclick = async () => {
       try {
-        // Show loading message
-        document.getElementById("wallet").innerText = "Generating TSS keys... This may take a moment.";
+        showLoading("🔑 Generating TSS cryptographic keys...\n\nThis involves secure multi-party computation\nand may take a few moments...");
         
         let res = await fetch("https://localhost:8443/keygen", {
           method: "POST",
@@ -152,8 +590,11 @@ All phases completed: KeyGen ✓ AuxInfo ✓ TShare ✓ PreSign ✓ Sign ✓`;
           }
         });
 
+        hideLoading();
+
         if (!res.ok) {
-          document.getElementById("error").innerText = "Failed to generate keys!";
+          showError("❌ Failed to generate cryptographic keys!");
+          updateWalletDisplay("❌ Key generation failed. Please check the server connection and try again.", false);
           return;
         }
 
@@ -176,20 +617,24 @@ All phases completed: KeyGen ✓ AuxInfo ✓ TShare ✓ PreSign ✓ Sign ✓`;
 👥 Participants: ${data.participants.length} workers
 ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 Your cryptographic keys have been generated using threshold
+   signatures. The private key is split across multiple parties
+   for enhanced security.`;
         
-        document.getElementById("wallet").innerText = keyResult;
+        updateWalletDisplay(keyResult, true);
 
       } catch (err) {
-        document.getElementById("error").innerText = "Key generation error: " + err;
-        document.getElementById("wallet").innerText = "Key generation failed. Check the error message above.";
+        hideLoading();
+        showError("⚠️ Key generation error: " + err.message);
+        updateWalletDisplay("❌ Key generation failed. Please check the server connection and try again.", false);
       }
     };
 
     document.getElementById("auxinfoBtn").onclick = async () => {
       try {
-        // Show loading message
-        document.getElementById("wallet").innerText = "Generating auxiliary information... This may take a moment.";
+        showLoading("🔧 Generating auxiliary information...\n\nCreating Paillier encryption keys and\nring-Pedersen parameters...");
         
         let res = await fetch("https://localhost:8443/auxinfo", {
           method: "POST",
@@ -199,8 +644,11 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
           }
         });
 
+        hideLoading();
+
         if (!res.ok) {
-          document.getElementById("error").innerText = "Failed to generate auxiliary information!";
+          showError("❌ Failed to generate auxiliary information!");
+          updateWalletDisplay("❌ Auxiliary information generation failed. Please check the server connection and try again.", false);
           return;
         }
 
@@ -220,20 +668,23 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
 🔧 Description: Auxiliary information includes Paillier encryption keys 
    and ring-Pedersen parameters needed for TSS operations.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 Auxiliary information provides the cryptographic foundation
+   for secure multi-party computation in the TSS protocol.`;
         
-        document.getElementById("wallet").innerText = auxinfoResult;
+        updateWalletDisplay(auxinfoResult, true);
 
       } catch (err) {
-        document.getElementById("error").innerText = "AuxInfo generation error: " + err;
-        document.getElementById("wallet").innerText = "AuxInfo generation failed. Check the error message above.";
+        hideLoading();
+        showError("⚠️ AuxInfo generation error: " + err.message);
+        updateWalletDisplay("❌ AuxInfo generation failed. Please check the server connection and try again.", false);
       }
     };
 
     document.getElementById("tshareBtn").onclick = async () => {
       try {
-        // Show loading message
-        document.getElementById("wallet").innerText = "Generating threshold shares... This may take a moment.";
+        showLoading("🔀 Generating threshold shares...\n\nConverting additive shares to Shamir\nthreshold shares (2-of-3 scheme)...");
         
         let res = await fetch("https://localhost:8443/tshare", {
           method: "POST",
@@ -243,8 +694,11 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
           }
         });
 
+        hideLoading();
+
         if (!res.ok) {
-          document.getElementById("error").innerText = "Failed to generate threshold shares!";
+          showError("❌ Failed to generate threshold shares!");
+          updateWalletDisplay("❌ Threshold share generation failed. Please check the server connection and try again.", false);
           return;
         }
 
@@ -264,20 +718,24 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
 🔀 Description: Converts additive shares to Shamir threshold shares,
    enabling t-of-n signature generation where t=2 and n=3.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 Threshold shares enable any 2 out of 3 participants to
+   collaboratively generate signatures without revealing
+   their individual private key components.`;
         
-        document.getElementById("wallet").innerText = tshareResult;
+        updateWalletDisplay(tshareResult, true);
 
       } catch (err) {
-        document.getElementById("error").innerText = "Tshare generation error: " + err;
-        document.getElementById("wallet").innerText = "Tshare generation failed. Check the error message above.";
+        hideLoading();
+        showError("⚠️ Tshare generation error: " + err.message);
+        updateWalletDisplay("❌ Tshare generation failed. Please check the server connection and try again.", false);
       }
     };
 
     document.getElementById("presignBtn").onclick = async () => {
       try {
-        // Show loading message
-        document.getElementById("wallet").innerText = "Generating presign records... This may take a moment.";
+        showLoading("📝 Generating presign records...\n\nCreating message-independent cryptographic\nartifacts for fast signing...");
         
         let res = await fetch("https://localhost:8443/presign", {
           method: "POST",
@@ -287,8 +745,11 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
           }
         });
 
+        hideLoading();
+
         if (!res.ok) {
-          document.getElementById("error").innerText = "Failed to generate presign records!";
+          showError("❌ Failed to generate presign records!");
+          updateWalletDisplay("❌ Presign record generation failed. Please check the server connection and try again.", false);
           return;
         }
 
@@ -309,13 +770,18 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
    artifacts that enable fast signing. Each record can be used to sign 
    exactly one message and must be kept secure until use.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 Presign records dramatically improve signing performance
+   by pre-computing expensive cryptographic operations.
+   They're the secret to lightning-fast TSS signatures!`;
         
-        document.getElementById("wallet").innerText = presignResult;
+        updateWalletDisplay(presignResult, true);
 
       } catch (err) {
-        document.getElementById("error").innerText = "Presign generation error: " + err;
-        document.getElementById("wallet").innerText = "Presign generation failed. Check the error message above.";
+        hideLoading();
+        showError("⚠️ Presign generation error: " + err.message);
+        updateWalletDisplay("❌ Presign generation failed. Please check the server connection and try again.", false);
       }
     };
 
@@ -323,12 +789,12 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
       try {
         const messageToSign = document.getElementById("messageInput").value;
         if (!messageToSign.trim()) {
-          document.getElementById("error").innerText = "Please enter a message to sign!";
+          showError("📝 Please enter a message to sign!");
+          updateWalletDisplay("⚠️ Message Required\n\nPlease enter a message in the input field above to generate a TSS signature.", false);
           return;
         }
 
-        // Show loading message
-        document.getElementById("wallet").innerText = `Signing message: "${messageToSign}"... This may take a moment.`;
+        showLoading("🔐 Signing message with TSS protocol...\n\nExecuting distributed signature generation\nacross multiple secure parties...");
         
         let res = await fetch("https://localhost:8443/sign", {
           method: "POST",
@@ -341,8 +807,11 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
           })
         });
 
+        hideLoading();
+
         if (!res.ok) {
-          document.getElementById("error").innerText = "Failed to sign message!";
+          showError("❌ Failed to sign message!");
+          updateWalletDisplay("❌ TSS signature generation failed. Please ensure presign records are available and try again.", false);
           return;
         }
 
@@ -367,13 +836,15 @@ ${data.success ? '✅' : '❌'} Status: ${data.message}
    where multiple parties collaborated to create a single signature
    without any single party having access to the full private key.
 
-💡 You can now verify this signature using the "Verify Message" button.`;
+💡 You can now verify this signature using the "Verify Message" button.
+   The signature is cryptographically valid and provides non-repudiation.`;
         
-        document.getElementById("wallet").innerText = signResult;
+        updateWalletDisplay(signResult, true);
 
       } catch (err) {
-        document.getElementById("error").innerText = "Message signing error: " + err;
-        document.getElementById("wallet").innerText = "Message signing failed. Check the error message above.";
+        hideLoading();
+        showError("⚠️ Message signing error: " + err.message);
+        updateWalletDisplay("❌ TSS signature generation failed. Please check the server connection and try again.", false);
       }
     };
 
@@ -381,7 +852,8 @@ ${data.success ? '✅' : '❌'} Status: ${data.message}
       try {
         const messageToVerify = document.getElementById("messageInput").value;
         if (!messageToVerify.trim()) {
-          document.getElementById("error").innerText = "Please enter a message to verify!";
+          showError("📝 Please enter a message to verify!");
+          updateWalletDisplay("⚠️ Message Required\n\nPlease enter a message in the input field above to verify its signature.", false);
           return;
         }
 
@@ -396,16 +868,16 @@ ${data.success ? '✅' : '❌'} Status: ${data.message}
             signatureToVerify = signatureMatch[1];
           } else {
             // If no signature found, prompt user
-            signatureToVerify = prompt("Please enter the signature (hex format) to verify:");
-            if (!signatureToVerify) {
-              document.getElementById("error").innerText = "Signature is required for verification!";
+            signatureToVerify = prompt("🔏 Please enter the signature (hex format) to verify:");
+            if (!signatureToVerify || !signatureToVerify.trim()) {
+              showError("🔏 Signature is required for verification!");
+              updateWalletDisplay("⚠️ Signature Required\n\nPlease provide a signature to verify against the message.", false);
               return;
             }
           }
         }
 
-        // Show loading message
-        document.getElementById("wallet").innerText = `Verifying signature for message: "${messageToVerify}"...`;
+        showLoading("🔍 Verifying signature with TSS protocol...\n\nValidating cryptographic integrity\nand authenticity...");
         
         let res = await fetch("https://localhost:8443/verify", {
           method: "POST",
@@ -419,8 +891,11 @@ ${data.success ? '✅' : '❌'} Status: ${data.message}
           })
         });
 
+        hideLoading();
+
         if (!res.ok) {
-          document.getElementById("error").innerText = "Failed to verify signature!";
+          showError("❌ Failed to verify signature!");
+          updateWalletDisplay("❌ TSS signature verification failed. Please check the server connection and try again.", false);
           return;
         }
 
@@ -441,14 +916,15 @@ ${data.success ? '✅' : '❌'} Status: ${data.message}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ${data.valid ? 
-  'ℹ️  The signature is cryptographically valid and was created by the\n   threshold signing protocol using the stored public key.' : 
-  '⚠️  The signature verification failed. This could mean:\n   • The signature was tampered with\n   • The message was modified\n   • Wrong signature or message provided'}`;
+  'ℹ️  The signature is cryptographically valid and was created by the\n   threshold signing protocol using the stored public key.\n\n🛡️  This confirms message integrity and authentic origin!' : 
+  '⚠️  The signature verification failed. This could mean:\n   • The signature was tampered with\n   • The message was modified\n   • Wrong signature or message provided\n\n🔒 Cryptographic verification protects against forgery.'}`;
         
-        document.getElementById("wallet").innerText = verifyResult;
+        updateWalletDisplay(verifyResult, data.valid);
 
       } catch (err) {
-        document.getElementById("error").innerText = "Signature verification error: " + err;
-        document.getElementById("wallet").innerText = "Signature verification failed. Check the error message above.";
+        hideLoading();
+        showError("⚠️ Signature verification error: " + err.message);
+        updateWalletDisplay("❌ TSS signature verification failed. Please check the server connection and try again.", false);
       }
     };
 
