@@ -72,6 +72,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/tshare", post(tshare::tshare))
         .route("/presign", post(presign::presign))
         .route("/sign", post(sign::sign))
+        .route("/verify", post(sign::verify))
         // Serve everything under ./static, with index.html support
         .fallback_service(ServeDir::new("src/static").append_index_html_on_directories(true));
 

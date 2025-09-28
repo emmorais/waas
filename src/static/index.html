@@ -348,6 +348,9 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
 
         let data = await res.json();
         
+        // Store the signature for verification
+        window.lastSignature = data.signature;
+        
         // Display the signing result
         const signResult = `✍️ TSS Message Signing Result:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -362,13 +365,90 @@ ${data.success ? '✅' : '❌'} Status: ${data.message}
 
 ℹ️  Note: This signature was generated using threshold cryptography,
    where multiple parties collaborated to create a single signature
-   without any single party having access to the full private key.`;
+   without any single party having access to the full private key.
+
+💡 You can now verify this signature using the "Verify Message" button.`;
         
         document.getElementById("wallet").innerText = signResult;
 
       } catch (err) {
         document.getElementById("error").innerText = "Message signing error: " + err;
         document.getElementById("wallet").innerText = "Message signing failed. Check the error message above.";
+      }
+    };
+
+    document.getElementById("verifyBtn").onclick = async () => {
+      try {
+        const messageToVerify = document.getElementById("messageInput").value;
+        if (!messageToVerify.trim()) {
+          document.getElementById("error").innerText = "Please enter a message to verify!";
+          return;
+        }
+
+        // Try to use the last signature from signing, or ask user to provide one
+        let signatureToVerify = window.lastSignature;
+        
+        if (!signatureToVerify) {
+          // If no signature stored, try to extract it from the current dashboard display
+          const walletText = document.getElementById("wallet").innerText;
+          const signatureMatch = walletText.match(/🔏 Signature: ([a-fA-F0-9]+)/);
+          if (signatureMatch) {
+            signatureToVerify = signatureMatch[1];
+          } else {
+            // If no signature found, prompt user
+            signatureToVerify = prompt("Please enter the signature (hex format) to verify:");
+            if (!signatureToVerify) {
+              document.getElementById("error").innerText = "Signature is required for verification!";
+              return;
+            }
+          }
+        }
+
+        // Show loading message
+        document.getElementById("wallet").innerText = `Verifying signature for message: "${messageToVerify}"...`;
+        
+        let res = await fetch("https://localhost:8443/verify", {
+          method: "POST",
+          headers: { 
+            "Authorization": authHeader,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: messageToVerify,
+            signature: signatureToVerify
+          })
+        });
+
+        if (!res.ok) {
+          document.getElementById("error").innerText = "Failed to verify signature!";
+          return;
+        }
+
+        let data = await res.json();
+        
+        // Display the verification result
+        const verifyResult = `🔍 TSS Signature Verification Result:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${data.valid ? '✅' : '❌'} Verification Result: ${data.valid ? 'VALID' : 'INVALID'}
+
+${data.success ? '✅' : '❌'} Status: ${data.message}
+
+📨 Message: "${messageToVerify}"
+
+🔏 Signature: ${signatureToVerify}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${data.valid ? 
+  'ℹ️  The signature is cryptographically valid and was created by the\n   threshold signing protocol using the stored public key.' : 
+  '⚠️  The signature verification failed. This could mean:\n   • The signature was tampered with\n   • The message was modified\n   • Wrong signature or message provided'}`;
+        
+        document.getElementById("wallet").innerText = verifyResult;
+
+      } catch (err) {
+        document.getElementById("error").innerText = "Signature verification error: " + err;
+        document.getElementById("wallet").innerText = "Signature verification failed. Check the error message above.";
       }
     };
 

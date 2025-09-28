@@ -1911,6 +1911,8 @@ dependencies = [
  "ecdsa",
  "hex",
  "itertools 0.12.1",
+ "k256",
+ "lazy_static",
  "rand",
  "serde",
  "sha3",

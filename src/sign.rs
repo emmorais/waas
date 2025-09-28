@@ -7,7 +7,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use serde::{Deserialize, Serialize};
 // SHA3 imports removed as they're not needed in the current implementation
 use tss_ecdsa::{
-    curve::{CurveTrait, Secp256k1},
+    curve::{CurveTrait, VerifyingKeyTrait},
     keygen::KeySharePublic,
     messages::Message,
     presign::PresignRecord,
@@ -24,6 +24,19 @@ pub struct SignRequest {
 #[derive(Serialize)]
 pub struct SignResponse {
     pub signature: String,
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Deserialize)]
+pub struct VerifyRequest {
+    pub message: String,
+    pub signature: String,
+}
+
+#[derive(Serialize)]
+pub struct VerifyResponse {
+    pub valid: bool,
     pub success: bool,
     pub message: String,
 }
@@ -212,6 +225,97 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
         threshold: 2, // t-of-n threshold
     };
 
+    // Store the public key for verification use
+    store_public_key_for_verification(&saved_public_key)?;
+
     // Run the signing protocol
     sign_helper(configs, sign_helper_input, message.as_bytes(), rng)
+}
+
+// Simple storage mechanism for the public key (in a real app, this would be in a database)
+fn store_public_key_for_verification(public_key: &<tss_ecdsa::curve::TestCurve as CurveTrait>::VerifyingKey) -> Result<()> {
+    use std::fs;
+    
+    // Convert public key to bytes for storage
+    let public_key_bytes = public_key.to_sec1_bytes();
+    fs::write("public_key.bin", public_key_bytes)?;
+    Ok(())
+}
+
+fn load_public_key_for_verification() -> Result<Option<<tss_ecdsa::curve::TestCurve as CurveTrait>::VerifyingKey>> {
+    use std::fs;
+    
+    if let Ok(bytes) = fs::read("public_key.bin") {
+        // Reconstruct the verifying key from bytes
+        let verifying_key = <tss_ecdsa::curve::TestCurve as CurveTrait>::VerifyingKey::from_sec1_bytes(&bytes)
+            .map_err(|_| anyhow::anyhow!("Failed to reconstruct public key from bytes"))?;
+        Ok(Some(verifying_key))
+    } else {
+        Ok(None)
+    }
+}
+
+pub async fn verify(Json(request): Json<VerifyRequest>) -> ResponseJson<VerifyResponse> {
+    match run_verification(&request.message, &request.signature).await {
+        Ok(is_valid) => ResponseJson(VerifyResponse {
+            valid: is_valid,
+            success: true,
+            message: if is_valid {
+                format!("✅ Signature is valid for message: '{}'", request.message)
+            } else {
+                format!("❌ Signature is NOT valid for message: '{}'", request.message)
+            },
+        }),
+        Err(e) => {
+            tracing::error!("Verification failed: {}", e);
+            ResponseJson(VerifyResponse {
+                valid: false,
+                success: false,
+                message: format!("Verification error: {}", e),
+            })
+        }
+    }
+}
+
+async fn run_verification(message: &str, signature_hex: &str) -> anyhow::Result<bool> {
+    // Load the stored public key
+    let public_key = load_public_key_for_verification()?
+        .ok_or_else(|| anyhow::anyhow!("No public key found. Please run the signing protocol first to generate a key."))?;
+
+    // Decode the signature from hex
+    let signature_bytes = hex::decode(signature_hex)
+        .map_err(|_| anyhow::anyhow!("Invalid signature format. Expected hex string."))?;
+
+    // Parse the DER-encoded signature using k256's from_der method
+    use k256::ecdsa::Signature as K256Signature;
+    let k256_signature = K256Signature::from_der(&signature_bytes)
+        .map_err(|_| anyhow::anyhow!("Failed to parse DER signature"))?;
+    
+    // Extract r and s scalars from the k256 signature to recreate TSS signature
+    let (r_scalar, s_scalar) = k256_signature.split_scalars();
+    
+    // Convert scalars to BigNumbers for TSS signature creation
+    use tss_ecdsa::curve::{TestCurve, ScalarTrait};
+    let r_bytes = r_scalar.to_bytes();
+    let s_bytes = s_scalar.to_bytes();
+    // Use the TSS library's BigNumber type (accessed through the curve trait)
+    let r_scalar_tss = <TestCurve as CurveTrait>::Scalar::from_repr(r_bytes.to_vec());
+    let s_scalar_tss = <TestCurve as CurveTrait>::Scalar::from_repr(s_bytes.to_vec());
+    let r_bn = <TestCurve as CurveTrait>::scalar_to_bn(&r_scalar_tss);
+    let s_bn = <TestCurve as CurveTrait>::scalar_to_bn(&s_scalar_tss);
+    
+    // Create TSS signature using from_scalars
+    use tss_ecdsa::curve::SignatureTrait;
+    let signature = <tss_ecdsa::curve::TestCurve as CurveTrait>::ECDSASignature::from_scalars(&r_bn, &s_bn)
+        .map_err(|_| anyhow::anyhow!("Failed to create TSS signature from scalars"))?;
+
+    // Create the message digest (same as used in signing)
+    use sha3::{Digest, Keccak256};
+    let digest = Keccak256::new_with_prefix(message.as_bytes());
+
+    // Verify the signature
+    match public_key.verify_signature(digest, signature) {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
 }
