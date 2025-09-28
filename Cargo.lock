@@ -1813,7 +1813,7 @@ dependencies = [
 [[package]]
 name = "tss-ecdsa"
 version = "0.0.0"
-source = "git+https://github.com/emmorais/tss-ecdsa.git#e7c9965fa8631a238bd6df1145f440326f8d8b25"
+source = "git+https://github.com/emmorais/tss-ecdsa.git?rev=be80421#be804219706de16f0c7597703fcfa106420f81de"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -1908,10 +1908,12 @@ dependencies = [
  "axum-server",
  "base64",
  "bcrypt",
+ "ecdsa",
  "hex",
  "itertools 0.12.1",
  "rand",
  "serde",
+ "sha3",
  "tokio",
  "tower-http",
  "tracing",

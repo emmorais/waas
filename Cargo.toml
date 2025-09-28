@@ -19,8 +19,10 @@ hex = "0.4"
 serde = { version = "1.0.227", features = ["derive"] }
 tokio = { version = "1.47.1", features = ["full"] }
 tower-http = { version = "0.6.6", features = ["fs"] }
-tss-ecdsa = { git = "https://github.com/emmorais/tss-ecdsa.git" }
+tss-ecdsa = { git = "https://github.com/emmorais/tss-ecdsa.git", rev = "be80421" }
 uuid = { version = "1.0", features = ["v4"] }
 rand = "0.8"
 tracing = "0.1"
 itertools = "0.12"
+sha3 = "0.10.8"
+ecdsa = "0.16.9"

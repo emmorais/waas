@@ -273,6 +273,59 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
       }
     };
 
+    document.getElementById("signBtn").onclick = async () => {
+      try {
+        const messageToSign = document.getElementById("messageInput").value;
+        if (!messageToSign.trim()) {
+          document.getElementById("error").innerText = "Please enter a message to sign!";
+          return;
+        }
+
+        // Show loading message
+        document.getElementById("wallet").innerText = `Signing message: "${messageToSign}"... This may take a moment.`;
+        
+        let res = await fetch("https://localhost:8443/sign", {
+          method: "POST",
+          headers: { 
+            "Authorization": authHeader,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: messageToSign
+          })
+        });
+
+        if (!res.ok) {
+          document.getElementById("error").innerText = "Failed to sign message!";
+          return;
+        }
+
+        let data = await res.json();
+        
+        // Display the signing result
+        const signResult = `✍️ TSS Message Signing Result:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${data.success ? '✅' : '❌'} Status: ${data.message}
+
+📨 Message Signed: "${messageToSign}"
+
+🔏 Signature: ${data.signature}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ℹ️  Note: This signature was generated using threshold cryptography,
+   where multiple parties collaborated to create a single signature
+   without any single party having access to the full private key.`;
+        
+        document.getElementById("wallet").innerText = signResult;
+
+      } catch (err) {
+        document.getElementById("error").innerText = "Message signing error: " + err;
+        document.getElementById("wallet").innerText = "Message signing failed. Check the error message above.";
+      }
+    };
+
     document.getElementById("logoutBtn").onclick = () => {
       authHeader = "";
       document.getElementById("login").classList.remove("hidden");
