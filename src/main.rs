@@ -79,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::debug!("📋 Configuring application routes");
     let app = Router::new()
         .route("/dashboard", get(dashboard::dashboard))
-        .route("/keygen", post(keygen::keygen))
+        .route("/keygen", post(keygen::keygen).get(keygen::check_keygen))
         .route("/auxinfo", post(auxinfo::auxinfo))
         .route("/tshare", post(tshare::tshare))
         .route("/presign", post(presign::presign))
@@ -90,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!(
         routes_count = 7,
-        routes = "/dashboard, /keygen, /auxinfo, /tshare, /presign, /sign, /verify",
+        routes = "/dashboard, /keygen (GET/POST), /auxinfo, /tshare, /presign, /sign, /verify",
         static_content = "src/static",
         "✅ Application routes configured"
     );

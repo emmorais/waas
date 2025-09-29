@@ -4,10 +4,6 @@ version = "0.1.0"
 edition = "2024"
 default-run = "waas"
 
-[[bin]]
-name = "test_keygen"
-path = "test_keygen.rs"
-
 [dependencies]
 anyhow = "1.0.100"
 async-trait = "0.1.89"

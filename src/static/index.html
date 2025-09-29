@@ -440,10 +440,10 @@
           </button>
         </div>
 
-        <!-- Protocol Controls -->
+        <!-- Wallet Operations -->
         <div class="controls-grid">
           <button id="keygenBtn" class="btn btn-success">
-            🔑 Distributed Keygen
+            🔑 Generate Key Pair
           </button>
         </div>
 
@@ -564,7 +564,50 @@ Select any protocol operation from the controls above to begin.`, true);
 
     document.getElementById("keygenBtn").onclick = async () => {
       try {
-        showLoading("🔑 Generating TSS cryptographic keys...\n\nThis involves secure multi-party computation\nand may take a few moments...");
+        // First check if keys already exist in local storage
+        showLoading("� Checking for existing cryptographic keys...");
+        
+        let checkRes = await fetch("https://localhost:8443/keygen", {
+          method: "GET",  // Use GET to check existing keys
+          headers: { 
+            "Authorization": authHeader,
+            "Content-Type": "application/json"
+          }
+        });
+
+        if (checkRes.ok) {
+          // Keys already exist, display them instead of regenerating
+          let existingData = await checkRes.json();
+          hideLoading();
+          
+          const existingKeyResult = `🔐 TSS Key Pair (Already Generated):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Status: Keys found in local storage
+
+�🔑 Public Key: ${existingData.public_key}
+
+🗝️  Private Key Share: ${existingData.private_key_share}
+
+🎲 RID: ${existingData.rid}
+
+⛓️  Chain Code: ${existingData.chain_code}
+
+👥 Participants: ${existingData.participants.length} workers
+${existingData.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 Using existing cryptographic keys from local storage.
+   Keys were previously generated using threshold signatures
+   for enhanced security.`;
+          
+          updateWalletDisplay(existingKeyResult, true);
+          return;
+        }
+
+        // No existing keys found, generate new ones
+        showLoading("🔑 Generating new TSS cryptographic keys...\n\nThis involves secure multi-party computation\nand may take a few moments...");
         
         let res = await fetch("https://localhost:8443/keygen", {
           method: "POST",
@@ -603,9 +646,8 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-💡 Your cryptographic keys have been generated using threshold
-   signatures. The private key is split across multiple parties
-   for enhanced security.`;
+💡 Your new cryptographic keys have been generated using threshold
+   signatures and saved to local storage for future use.`;
         
         updateWalletDisplay(keyResult, true);
 

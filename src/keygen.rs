@@ -1,4 +1,4 @@
-use axum::{response::Json, response::IntoResponse};
+use axum::{response::Json, response::IntoResponse, http::StatusCode};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use rand::{rngs::StdRng, SeedableRng};
@@ -8,6 +8,7 @@ use tss_ecdsa::{
     messages::Message,
     ParticipantConfig, ParticipantIdentifier, ProtocolParticipant, Participant, Identifier,
 };
+use anyhow::Result;
 
 const NUMBER_OF_WORKERS: usize = 3;
 
@@ -154,7 +155,7 @@ fn inboxes_are_empty(inboxes: &HashMap<ParticipantIdentifier, Vec<Message>>) -> 
     inboxes.values().all(|messages| messages.is_empty())
 }
 
-// Main keygen endpoint
+// Main keygen endpoint for generating new keys (POST)
 pub async fn keygen(_auth: crate::BasicAuth) -> impl IntoResponse {
     tracing::info!("🔑 Starting TSS key generation protocol");
     let start_time = std::time::Instant::now();
@@ -185,6 +186,42 @@ pub async fn keygen(_auth: crate::BasicAuth) -> impl IntoResponse {
                 message: format!("Key generation failed: {}", e),
                 participants: vec![],
             })
+        }
+    }
+}
+
+// Check for existing keys endpoint (GET)
+pub async fn check_keygen(_auth: crate::BasicAuth) -> impl IntoResponse {
+    tracing::info!("🔍 Checking for existing TSS keys");
+    let start_time = std::time::Instant::now();
+    
+    match check_existing_keys().await {
+        Ok(response) => {
+            let duration = start_time.elapsed();
+            tracing::info!(
+                participants = response.participants.len(),
+                public_key_preview = %response.public_key.get(..16.min(response.public_key.len())).unwrap_or(""),
+                duration_ms = duration.as_millis(),
+                "✅ Existing TSS keys found and loaded"
+            );
+            (StatusCode::OK, Json(response))
+        },
+        Err(e) => {
+            let duration = start_time.elapsed();
+            tracing::debug!(
+                error = %e,
+                duration_ms = duration.as_millis(),
+                "📋 No existing TSS keys found"
+            );
+            // Return 404 to indicate no keys exist
+            (StatusCode::NOT_FOUND, Json(KeygenResponse {
+                public_key: "".to_string(),
+                private_key_share: "".to_string(),
+                rid: "".to_string(),
+                chain_code: "".to_string(),
+                message: "No existing keys found".to_string(),
+                participants: vec![],
+            }))
         }
     }
 }
@@ -251,4 +288,90 @@ async fn run_tss_keygen() -> anyhow::Result<KeygenResponse> {
     } else {
         anyhow::bail!("No keygen output found for first participant");
     }
+}
+
+async fn check_existing_keys() -> anyhow::Result<KeygenResponse> {
+    tracing::debug!("🔍 Checking for existing keygen essentials");
+    
+    // Check if keygen has been completed before
+    if !is_keygen_completed() {
+        anyhow::bail!("No existing keygen found");
+    }
+    
+    tracing::debug!("📂 Loading existing keygen essentials");
+    let (configs, keygen_result) = load_keygen_and_regenerate()?;
+    
+    // Extract the first participant's output for response
+    let first_participant_id = configs[0].id();
+    if let Some(output) = keygen_result.keygen_outputs.get(&first_participant_id) {
+        // Convert the output to a response format
+        let public_key = match output.public_key() {
+            Ok(pk) => hex::encode(pk.to_sec1_bytes()),
+            Err(_) => "error_getting_public_key".to_string(),
+        };
+        let private_key_share = format!("{:?}", output.private_key_share());
+        let rid = hex::encode(output.rid());
+        let chain_code = hex::encode(output.chain_code());
+        
+        tracing::info!(
+            participants = configs.len(),
+            public_key_preview = %public_key.get(..16.min(public_key.len())).unwrap_or(""),
+            "✅ Existing TSS keys loaded successfully"
+        );
+        
+        Ok(KeygenResponse {
+            public_key,
+            private_key_share,
+            rid,
+            chain_code,
+            message: "Existing TSS keys loaded from storage".to_string(),
+            participants: configs
+                .iter()
+                .map(|config| format!("{:?}", config.id()))
+                .collect(),
+        })
+    } else {
+        anyhow::bail!("No keygen output found for first participant in existing keys");
+    }
+}
+
+// Helper functions from sign.rs for key storage checking
+fn is_keygen_completed() -> bool {
+    use std::fs;
+    
+    let marker_exists = fs::metadata("keygen_completed.marker").is_ok();
+    let essentials_exist = fs::metadata("keygen_essentials.json").is_ok();
+    marker_exists && essentials_exist
+}
+
+#[derive(Serialize, Deserialize)]
+struct StoredKeygenEssentials {
+    configs_serialized: Vec<u8>,
+    public_key_bytes: Vec<u8>,
+    chain_code: [u8; 32],
+}
+
+fn load_keygen_and_regenerate() -> Result<(Vec<ParticipantConfig>, KeygenHelperOutput<TestCurve>)> {
+    use std::fs;
+    
+    let json_data = fs::read_to_string("keygen_essentials.json")
+        .map_err(|_| anyhow::anyhow!("No keygen essentials found"))?;
+        
+    let stored_data: StoredKeygenEssentials = serde_json::from_str(&json_data)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize keygen essentials: {}", e))?;
+    
+    let configs: Vec<ParticipantConfig> = bincode::deserialize(&stored_data.configs_serialized)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize configs: {}", e))?;
+    
+    // Regenerate keygen with fresh entropy but same configs
+    let keygen_rng = StdRng::from_entropy();
+    let keygen_result: KeygenHelperOutput<TestCurve> = {
+        let keygen_inboxes: HashMap<ParticipantIdentifier, Vec<Message>> = configs
+            .iter()
+            .map(|config| (config.id(), Vec::new()))
+            .collect();
+        keygen_helper(configs.clone(), keygen_inboxes, keygen_rng)?
+    };
+    
+    Ok((configs, keygen_result))
 }
