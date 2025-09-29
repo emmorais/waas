@@ -262,6 +262,9 @@ async fn run_tss_keygen() -> anyhow::Result<KeygenResponse> {
         "✅ TSS keygen protocol completed"
     );
 
+    // Store keygen essentials to filesystem
+    store_keygen_essentials(&configs, &keygen_result)?;
+
     // Extract the first participant's output for response
     let first_participant_id = configs[0].id();
     if let Some(output) = keygen_result.keygen_outputs.get(&first_participant_id) {
@@ -298,41 +301,34 @@ async fn check_existing_keys() -> anyhow::Result<KeygenResponse> {
         anyhow::bail!("No existing keygen found");
     }
     
-    tracing::debug!("📂 Loading existing keygen essentials");
-    let (configs, keygen_result) = load_keygen_and_regenerate()?;
+    tracing::debug!("📂 Loading existing keygen essentials from storage");
+    let stored_essentials = load_stored_keygen_essentials()?;
     
-    // Extract the first participant's output for response
-    let first_participant_id = configs[0].id();
-    if let Some(output) = keygen_result.keygen_outputs.get(&first_participant_id) {
-        // Convert the output to a response format
-        let public_key = match output.public_key() {
-            Ok(pk) => hex::encode(pk.to_sec1_bytes()),
-            Err(_) => "error_getting_public_key".to_string(),
-        };
-        let private_key_share = format!("{:?}", output.private_key_share());
-        let rid = hex::encode(output.rid());
-        let chain_code = hex::encode(output.chain_code());
-        
-        tracing::info!(
-            participants = configs.len(),
-            public_key_preview = %public_key.get(..16.min(public_key.len())).unwrap_or(""),
-            "✅ Existing TSS keys loaded successfully"
-        );
-        
-        Ok(KeygenResponse {
-            public_key,
-            private_key_share,
-            rid,
-            chain_code,
-            message: "Existing TSS keys loaded from storage".to_string(),
-            participants: configs
-                .iter()
-                .map(|config| format!("{:?}", config.id()))
-                .collect(),
-        })
-    } else {
-        anyhow::bail!("No keygen output found for first participant in existing keys");
-    }
+    // Convert stored data to response format using the stored essentials only
+    let public_key = hex::encode(&stored_essentials.public_key_bytes);
+    let chain_code = hex::encode(&stored_essentials.chain_code);
+    
+    // Deserialize configs to get participant count
+    let configs: Vec<ParticipantConfig> = bincode::deserialize(&stored_essentials.configs_serialized)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize configs: {}", e))?;
+    
+    tracing::info!(
+        participants = configs.len(),
+        public_key_preview = %public_key.get(..16.min(public_key.len())).unwrap_or(""),
+        "✅ Existing TSS keys found in storage (no protocol execution needed)"
+    );
+    
+    Ok(KeygenResponse {
+        public_key,
+        private_key_share: "[stored securely - not displayed in check mode]".to_string(),
+        rid: "[stored securely - not displayed in check mode]".to_string(),
+        chain_code,
+        message: "Existing TSS keys found in local storage".to_string(),
+        participants: configs
+            .iter()
+            .map(|config| format!("{:?}", config.id()))
+            .collect(),
+    })
 }
 
 // Helper functions from sign.rs for key storage checking
@@ -351,6 +347,21 @@ struct StoredKeygenEssentials {
     chain_code: [u8; 32],
 }
 
+// Load stored keygen essentials without running the protocol
+fn load_stored_keygen_essentials() -> Result<StoredKeygenEssentials> {
+    use std::fs;
+    
+    let json_data = fs::read_to_string("keygen_essentials.json")
+        .map_err(|_| anyhow::anyhow!("No keygen essentials found"))?;
+        
+    let stored_data: StoredKeygenEssentials = serde_json::from_str(&json_data)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize keygen essentials: {}", e))?;
+    
+    tracing::debug!("📋 Loaded keygen essentials from storage without protocol execution");
+    Ok(stored_data)
+}
+
+// Load and regenerate full keygen results (used by sign operations)
 fn load_keygen_and_regenerate() -> Result<(Vec<ParticipantConfig>, KeygenHelperOutput<TestCurve>)> {
     use std::fs;
     
@@ -374,4 +385,46 @@ fn load_keygen_and_regenerate() -> Result<(Vec<ParticipantConfig>, KeygenHelperO
     };
     
     Ok((configs, keygen_result))
+}
+
+fn store_keygen_essentials(
+    configs: &Vec<ParticipantConfig>,
+    keygen_result: &KeygenHelperOutput<TestCurve>
+) -> Result<()> {
+    use std::fs;
+    
+    tracing::debug!(
+        storage_path = "keygen_essentials.json",
+        configs_count = configs.len(),
+        keygen_outputs_count = keygen_result.keygen_outputs.len(),
+        "💾 Storing keygen essentials to filesystem"
+    );
+    
+    // Serialize configs (these do support Serde)
+    let configs_serialized = bincode::serialize(configs)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize configs: {}", e))?;
+    
+    // Extract essential data from keygen result
+    let first_keygen_output = keygen_result.keygen_outputs.values().next().unwrap();
+    let public_key = first_keygen_output.public_key()?;
+    let chain_code = *first_keygen_output.chain_code();
+    
+    let stored_data = StoredKeygenEssentials {
+        configs_serialized,
+        public_key_bytes: public_key.to_sec1_bytes().to_vec(),
+        chain_code,
+    };
+    
+    let json_data = serde_json::to_string_pretty(&stored_data)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize keygen essentials to JSON: {}", e))?;
+    
+    fs::write("keygen_essentials.json", json_data)?;
+    fs::write("keygen_completed.marker", "1")?;
+    
+    tracing::info!(
+        configs_count = configs.len(),
+        "✅ Keygen essentials stored successfully (will regenerate outputs deterministically)"
+    );
+    
+    Ok(())
 }
