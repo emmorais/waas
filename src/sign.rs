@@ -16,6 +16,8 @@ use tss_ecdsa::{
     Identifier, Participant, ParticipantIdentifier, ProtocolParticipant
 };
 
+use crate::keygen::KeygenHelperOutput;
+
 #[derive(Deserialize)]
 pub struct SignRequest {
     pub message: String,
@@ -263,6 +265,8 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
         let keygen_start = std::time::Instant::now();
         
         let (stored_configs, regenerated_keygen_result) = load_keygen_and_regenerate()?;
+        let keygen_result_serialized = serde_json::to_string(&regenerated_keygen_result)?;
+        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!! STORED Keygen Result Serialized: {}", keygen_result_serialized); // --- IGNORE ---
         
         tracing::info!(
             duration_ms = keygen_start.elapsed().as_millis(),
@@ -289,7 +293,10 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
                 .collect();
             keygen_helper(configs.clone(), keygen_inboxes, keygen_rng)?
         };
-        
+        // Serialize keygen_result
+        let keygen_result_serialized = serde_json::to_string(&keygen_result)?;
+        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!! NEW Keygen Result Serialized: {}", keygen_result_serialized); // --- IGNORE ---
+
         tracing::info!(
             duration_ms = keygen_start.elapsed().as_millis(),
             key_shares = keygen_result.keygen_outputs.len(),
@@ -469,23 +476,7 @@ fn store_keygen_essentials(
         "💾 Storing keygen essentials to filesystem"
     );
     
-    // Serialize configs (these do support Serde)
-    let configs_serialized = bincode::serialize(configs)
-        .map_err(|e| anyhow::anyhow!("Failed to serialize configs: {}", e))?;
-    
-    // Extract essential data from keygen result
-    let first_keygen_output = keygen_result.keygen_outputs.values().next().unwrap();
-    let public_key = first_keygen_output.public_key()?;
-    let chain_code = *first_keygen_output.chain_code();
-    
-    let stored_data = StoredKeygenEssentials {
-        configs_serialized,
-        public_key_bytes: public_key.to_sec1_bytes().to_vec(),
-        chain_code,
-    };
-    
-    let json_data = serde_json::to_string_pretty(&stored_data)
-        .map_err(|e| anyhow::anyhow!("Failed to serialize keygen essentials to JSON: {}", e))?;
+    let json_data = serde_json::to_string(&keygen_result)?;
     
     fs::write("keygen_essentials.json", json_data)?;
     fs::write("keygen_completed.marker", "1")?;
@@ -509,33 +500,16 @@ fn load_keygen_and_regenerate() -> Result<(Vec<ParticipantConfig>, crate::keygen
     let json_data = fs::read_to_string("keygen_essentials.json")
         .map_err(|_| anyhow::anyhow!("No keygen essentials found - will generate new keys"))?;
         
-    let stored_data: StoredKeygenEssentials = serde_json::from_str(&json_data)
+    let keygen_result: KeygenHelperOutput<tss_ecdsa::curve::TestCurve> = serde_json::from_str(&json_data)
         .map_err(|e| anyhow::anyhow!("Failed to deserialize keygen essentials: {}", e))?;
-    
-    let configs: Vec<ParticipantConfig> = bincode::deserialize(&stored_data.configs_serialized)
-        .map_err(|e| anyhow::anyhow!("Failed to deserialize configs: {}", e))?;
-    
-    tracing::debug!(
-        configs_count = configs.len(),
-        "🔄 Regenerating keygen outputs using stored configs"
-    );
-    
-    // Regenerate keygen with fresh entropy but same configs
-    let keygen_rng = StdRng::from_entropy();
-    use crate::keygen::{keygen_helper, KeygenHelperOutput};
-    let keygen_result: KeygenHelperOutput<tss_ecdsa::curve::TestCurve> = {
-        let keygen_inboxes: HashMap<ParticipantIdentifier, Vec<Message>> = configs
-            .iter()
-            .map(|config| (config.id(), Vec::new()))
-            .collect();
-        keygen_helper(configs.clone(), keygen_inboxes, keygen_rng)?
-    };
-    
-    tracing::debug!(
-        configs_count = configs.len(),
-        keygen_outputs_count = keygen_result.keygen_outputs.len(),
-        "✅ Keygen outputs regenerated with fresh entropy"
-    );
+    // compute configs from keygen_result
+    let all_ids: Vec<ParticipantIdentifier> = keygen_result.keygen_outputs.keys().cloned().collect();
+    let configs: Vec<ParticipantConfig> = all_ids.iter().map(|id| {
+            // remove id from all_ids to get others
+            let mut others = all_ids.clone();
+            others.retain(|other| other != id);
+            ParticipantConfig::new(*id, &others).unwrap()
+        }).collect();
     
     Ok((configs, keygen_result))
 }

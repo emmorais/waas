@@ -23,8 +23,9 @@ pub struct KeygenResponse {
 }
 
 // KeygenHelperOutput struct to match the one in your fork
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct KeygenHelperOutput<C: CurveTrait> {
+    #[serde(bound(deserialize = "C: CurveTrait"))]
     pub keygen_outputs: HashMap<ParticipantIdentifier, <KeygenParticipant<C> as ProtocolParticipant>::Output>,
 }
 

@@ -1932,7 +1932,7 @@ dependencies = [
 [[package]]
 name = "tss-ecdsa"
 version = "0.0.0"
-source = "git+https://github.com/emmorais/tss-ecdsa.git?rev=be80421#be804219706de16f0c7597703fcfa106420f81de"
+source = "git+https://github.com/emmorais/tss-ecdsa.git?rev=fe54a28#fe54a2838fd59f91fd3f48629112063dff012ae0"
 dependencies = [
  "bincode",
  "bytemuck",

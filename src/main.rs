@@ -80,9 +80,6 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/dashboard", get(dashboard::dashboard))
         .route("/keygen", post(keygen::keygen).get(keygen::check_keygen))
-        .route("/auxinfo", post(auxinfo::auxinfo))
-        .route("/tshare", post(tshare::tshare))
-        .route("/presign", post(presign::presign))
         .route("/sign", post(sign::sign))
         .route("/verify", post(sign::verify))
         // Serve everything under ./static, with index.html support
