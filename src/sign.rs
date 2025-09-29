@@ -265,8 +265,6 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
         let keygen_start = std::time::Instant::now();
         
         let (stored_configs, regenerated_keygen_result) = load_keygen_and_regenerate()?;
-        let keygen_result_serialized = serde_json::to_string(&regenerated_keygen_result)?;
-        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!! STORED Keygen Result Serialized: {}", keygen_result_serialized); // --- IGNORE ---
         
         tracing::info!(
             duration_ms = keygen_start.elapsed().as_millis(),
@@ -293,9 +291,6 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
                 .collect();
             keygen_helper(configs.clone(), keygen_inboxes, keygen_rng)?
         };
-        // Serialize keygen_result
-        let keygen_result_serialized = serde_json::to_string(&keygen_result)?;
-        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!! NEW Keygen Result Serialized: {}", keygen_result_serialized); // --- IGNORE ---
 
         tracing::info!(
             duration_ms = keygen_start.elapsed().as_millis(),
@@ -451,16 +446,6 @@ fn load_public_key_for_verification() -> Result<Option<<tss_ecdsa::curve::TestCu
         Ok(None)
     }
 }
-
-// Serializable keygen essential data (what we can extract and store)
-#[derive(Serialize, Deserialize)]
-struct StoredKeygenEssentials {
-    configs_serialized: Vec<u8>,
-    public_key_bytes: Vec<u8>,
-    chain_code: [u8; 32],
-}
-
-
 
 // Storage functions for keygen essentials (hybrid approach due to TSS serialization limitations)
 fn store_keygen_essentials(
