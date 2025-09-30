@@ -461,6 +461,28 @@
           <button id="deleteKeyBtn" class="btn btn-danger">
             🗑️ Delete Key Material
           </button>
+          <button id="listKeysBtn" class="btn btn-info">
+            📋 List Keys
+          </button>
+          <button id="deriveKeyBtn" class="btn btn-primary">
+            🌱 Derive Child Key
+          </button>
+        </div>
+
+        <!-- HD Key Management -->
+        <div class="hd-key-controls" style="margin-bottom: 20px;">
+          <div class="message-input-group">
+            <input type="number" id="childIndexInput" class="form-input" placeholder="Child Index (optional - auto-generate if empty)" min="1" />
+            <input type="text" id="keyLabelInput" class="form-input" placeholder="Key Label (optional)" />
+          </div>
+          <div class="controls-grid" style="grid-template-columns: 1fr 1fr;">
+            <button id="deleteChildKeyBtn" class="btn btn-danger">
+              🗑️ Delete Child Key
+            </button>
+            <select id="keySelector" class="form-input" style="grid-column: span 1;">
+              <option value="0">Root Key (Index 0)</option>
+            </select>
+          </div>
         </div>
 
         <!-- Message Operations -->
@@ -742,6 +764,8 @@ ${data.deleted_files.map((file, i) => `   ${i + 1}. ${file}`).join('\n')}
 
         showLoading("🔐 Signing message with TSS protocol...\n\nExecuting distributed signature generation\nacross multiple secure parties...");
         
+        const selectedChildIndex = parseInt(document.getElementById("keySelector").value);
+        
         let res = await fetch("https://localhost:8443/sign", {
           method: "POST",
           headers: { 
@@ -749,7 +773,8 @@ ${data.deleted_files.map((file, i) => `   ${i + 1}. ${file}`).join('\n')}
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            message: messageToSign
+            message: messageToSign,
+            child_index: selectedChildIndex
           })
         });
 
@@ -767,13 +792,14 @@ ${data.deleted_files.map((file, i) => `   ${i + 1}. ${file}`).join('\n')}
         window.lastSignature = data.signature;
         
         // Display the signing result
+        const keyDescription = selectedChildIndex === 0 ? "Root Key" : `Child Key ${selectedChildIndex}`;
         const signResult = `✍️ TSS Message Signing Result:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ${data.success ? '✅' : '❌'} Status: ${data.message}
 
 📨 Message Signed: "${messageToSign}"
-
+🔑 Key Used: ${keyDescription} (Index ${selectedChildIndex})
 🔏 Signature: ${data.signature}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -825,6 +851,8 @@ ${data.success ? '✅' : '❌'} Status: ${data.message}
 
         showLoading("🔍 Verifying signature with TSS protocol...\n\nValidating cryptographic integrity\nand authenticity...");
         
+        const selectedChildIndex = parseInt(document.getElementById("keySelector").value);
+        
         let res = await fetch("https://localhost:8443/verify", {
           method: "POST",
           headers: { 
@@ -833,7 +861,8 @@ ${data.success ? '✅' : '❌'} Status: ${data.message}
           },
           body: JSON.stringify({
             message: messageToVerify,
-            signature: signatureToVerify
+            signature: signatureToVerify,
+            child_index: selectedChildIndex
           })
         });
 
@@ -848,6 +877,7 @@ ${data.success ? '✅' : '❌'} Status: ${data.message}
         let data = await res.json();
         
         // Display the verification result
+        const keyDescription = selectedChildIndex === 0 ? "Root Key" : `Child Key ${selectedChildIndex}`;
         const verifyResult = `🔍 TSS Signature Verification Result:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -856,7 +886,7 @@ ${data.valid ? '✅' : '❌'} Verification Result: ${data.valid ? 'VALID' : 'INV
 ${data.success ? '✅' : '❌'} Status: ${data.message}
 
 📨 Message: "${messageToVerify}"
-
+🔑 Key Used: ${keyDescription} (Index ${selectedChildIndex})
 🔏 Signature: ${signatureToVerify}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -873,6 +903,192 @@ ${data.valid ?
         updateWalletDisplay("❌ TSS signature verification failed. Please check the server connection and try again.", false);
       }
     };
+
+    // HD Key Management handlers
+    document.getElementById("listKeysBtn").onclick = async () => {
+      try {
+        showLoading("📋 Loading key list...");
+        
+        let res = await fetch("https://localhost:8443/list_keys", {
+          method: "GET",
+          headers: { 
+            "Authorization": authHeader,
+            "Content-Type": "application/json"
+          }
+        });
+
+        hideLoading();
+
+        if (!res.ok) {
+          showError("❌ Failed to load key list!");
+          return;
+        }
+
+        let data = await res.json();
+        
+        if (data.success) {
+          // Update key selector
+          updateKeySelector(data.keys);
+          
+          // Display key list
+          const keyList = data.keys.length === 0 ? 
+            "📋 No keys found. Generate a root key first." :
+            data.keys.map(key => 
+              `${key.child_index === 0 ? '🔑 Root' : '🌱 Child'} Key ${key.child_index}${key.label ? ' (' + key.label + ')' : ''}\n   Public: ${key.public_key_hex.substring(0, 32)}...\n   Created: ${new Date(key.created_at).toLocaleString()}`
+            ).join('\n\n');
+            
+          const keyListResult = `📋 HD Key List:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${keyList}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 Use the key selector above to choose which key to use for signing/verification.
+   Child keys are derived deterministically from the root key.`;
+        
+          updateWalletDisplay(keyListResult, true);
+        } else {
+          updateWalletDisplay("❌ Failed to load key list", false);
+        }
+
+      } catch (err) {
+        hideLoading();
+        showError("⚠️ Key list error: " + err.message);
+      }
+    };
+
+    document.getElementById("deriveKeyBtn").onclick = async () => {
+      try {
+        const childIndex = document.getElementById("childIndexInput").value;
+        const keyLabel = document.getElementById("keyLabelInput").value;
+        
+        const requestData = {};
+        if (childIndex) requestData.child_index = parseInt(childIndex);
+        if (keyLabel) requestData.label = keyLabel;
+
+        showLoading("🌱 Deriving child key...\n\nGenerating new hierarchical key...");
+        
+        let res = await fetch("https://localhost:8443/derive_key", {
+          method: "POST",
+          headers: { 
+            "Authorization": authHeader,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(requestData)
+        });
+
+        hideLoading();
+
+        if (!res.ok) {
+          showError("❌ Failed to derive child key!");
+          return;
+        }
+
+        let data = await res.json();
+        
+        if (data.success) {
+          // Clear input fields
+          document.getElementById("childIndexInput").value = "";
+          document.getElementById("keyLabelInput").value = "";
+          
+          // Refresh key list
+          document.getElementById("listKeysBtn").click();
+          
+          const deriveResult = `🌱 Child Key Derived Successfully:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Status: ${data.message}
+
+🔢 Child Index: ${data.child_index}
+${data.label ? '🏷️  Label: ' + data.label + '\n' : ''}
+🔑 Public Key: ${data.public_key}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 Child key has been added to your HD wallet. You can now use it for
+   signing and verification operations by selecting it from the dropdown.`;
+        
+          updateWalletDisplay(deriveResult, true);
+        } else {
+          updateWalletDisplay(`❌ Key derivation failed: ${data.message}`, false);
+        }
+
+      } catch (err) {
+        hideLoading();
+        showError("⚠️ Key derivation error: " + err.message);
+      }
+    };
+
+    document.getElementById("deleteChildKeyBtn").onclick = async () => {
+      try {
+        const selectedKey = document.getElementById("keySelector").value;
+        const childIndex = parseInt(selectedKey);
+        
+        if (childIndex === 0) {
+          showError("❌ Cannot delete root key using this button. Use 'Delete Key Material' instead.");
+          return;
+        }
+        
+        if (!confirm(`Are you sure you want to delete child key ${childIndex}?\n\nThis action cannot be undone.`)) {
+          return;
+        }
+
+        showLoading("🗑️ Deleting child key...");
+        
+        let res = await fetch("https://localhost:8443/delete_child_key", {
+          method: "POST",
+          headers: { 
+            "Authorization": authHeader,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ child_index: childIndex })
+        });
+
+        hideLoading();
+
+        if (!res.ok) {
+          showError("❌ Failed to delete child key!");
+          return;
+        }
+
+        let data = await res.json();
+        
+        if (data.success) {
+          // Reset key selector to root
+          document.getElementById("keySelector").value = "0";
+          
+          // Refresh key list
+          document.getElementById("listKeysBtn").click();
+          
+          updateWalletDisplay(`✅ Child key ${data.deleted_child_index} deleted successfully`, true);
+        } else {
+          updateWalletDisplay(`❌ Child key deletion failed: ${data.message}`, false);
+        }
+
+      } catch (err) {
+        hideLoading();
+        showError("⚠️ Child key deletion error: " + err.message);
+      }
+    };
+
+    // Helper function to update key selector
+    function updateKeySelector(keys) {
+      const selector = document.getElementById("keySelector");
+      
+      // Clear existing options except root
+      selector.innerHTML = '<option value="0">Root Key (Index 0)</option>';
+      
+      // Add child keys
+      keys.forEach(key => {
+        if (key.child_index !== 0) {
+          const option = document.createElement('option');
+          option.value = key.child_index;
+          option.textContent = `Child Key ${key.child_index}${key.label ? ' (' + key.label + ')' : ''}`;
+          selector.appendChild(option);
+        }
+      });
+    }
 
     document.getElementById("logoutBtn").onclick = () => {
       authHeader = "";

@@ -16,11 +16,10 @@ use tss_ecdsa::{
     Identifier, Participant, ParticipantIdentifier, ProtocolParticipant
 };
 
-use crate::keygen::KeygenHelperOutput;
-
 #[derive(Deserialize)]
 pub struct SignRequest {
     pub message: String,
+    pub child_index: Option<u32>, // Optional: if None, use root key (0)
 }
 
 #[derive(Serialize)]
@@ -34,6 +33,7 @@ pub struct SignResponse {
 pub struct VerifyRequest {
     pub message: String,
     pub signature: String,
+    pub child_index: Option<u32>, // Optional: if None, use root key (0)
 }
 
 #[derive(Serialize)]
@@ -211,7 +211,8 @@ pub async fn sign(Json(request): Json<SignRequest>) -> ResponseJson<SignResponse
 
     let start_time = std::time::Instant::now();
     
-    match run_tss_sign(&request.message).await {
+    let child_index = request.child_index.unwrap_or(0);
+    match run_tss_sign(&request.message, child_index).await {
         Ok(signature) => {
             let duration = start_time.elapsed();
             let sig_hex = hex::encode(&signature);
@@ -249,7 +250,7 @@ pub async fn sign(Json(request): Json<SignRequest>) -> ResponseJson<SignResponse
     }
 }
 
-async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
+async fn run_tss_sign(message: &str, child_index: u32) -> anyhow::Result<Vec<u8>> {
     use tss_ecdsa::curve::TestCurve;
     use crate::keygen::KeygenHelperOutput;
     
@@ -261,19 +262,19 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
     // Run the full protocol chain to generate presign records
     // 1. Generate or restore keygen outputs
     let (configs, keygen_result): (Vec<ParticipantConfig>, KeygenHelperOutput<TestCurve>) = if is_keygen_completed() {
-        tracing::info!("🔄 Regenerating keygen outputs using stored essentials");
+        tracing::info!("🔄 Loading keygen outputs from storage");
         let keygen_start = std::time::Instant::now();
         
-        let (stored_configs, regenerated_keygen_result) = load_keygen_and_regenerate()?;
+        let (loaded_configs, loaded_keygen_result) = load_keygen_outputs()?;
         
         tracing::info!(
             duration_ms = keygen_start.elapsed().as_millis(),
-            key_shares = regenerated_keygen_result.keygen_outputs.len(),
-            participants = stored_configs.len(),
-            "✅ Key generation regenerated with fresh entropy using stored configs"
+            key_shares = loaded_keygen_result.keygen_outputs.len(),
+            participants = loaded_configs.len(),
+            "✅ Keygen data loaded from storage with configs and private shares"
         );
         
-        (stored_configs, regenerated_keygen_result)
+        (loaded_configs, loaded_keygen_result)
     } else {
         tracing::debug!("📋 Phase 1: Starting key generation protocol (first time)");
         let keygen_start = std::time::Instant::now();
@@ -299,9 +300,9 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
             "✅ Key generation completed (first time) with fresh entropy"
         );
 
-        // Store keygen essentials to local storage
-        store_keygen_essentials(&configs, &keygen_result)?;
-        tracing::debug!("💾 Keygen essentials stored to local storage");
+        // Store complete keygen outputs to local storage
+        store_keygen_outputs(&configs, &keygen_result)?;
+        tracing::debug!("💾 Complete keygen outputs stored to local storage");
         
         (configs, keygen_result)
     };
@@ -365,7 +366,7 @@ async fn run_tss_sign(message: &str) -> anyhow::Result<Vec<u8>> {
         presign_outputs: presign_result.presign_outputs,
         chain_code,
         inboxes: sign_inboxes,
-        child_index: 0,
+        child_index,
         threshold: 2, // t-of-n threshold
     };
 
@@ -415,6 +416,36 @@ fn store_public_key_for_verification(public_key: &<tss_ecdsa::curve::TestCurve a
     Ok(())
 }
 
+fn load_public_key_for_verification_with_child(child_index: u32) -> Result<Option<<tss_ecdsa::curve::TestCurve as CurveTrait>::VerifyingKey>> {
+    // NOTE: Currently, all signatures are generated using the root TSS private key shares
+    // regardless of child_index, because TSS child key derivation for private shares
+    // is not yet implemented in the TSS library.
+    // 
+    // Therefore, for consistency, we always verify against the root public key
+    // until full HD-TSS support is available.
+    
+    if child_index == 0 {
+        tracing::debug!("🔑 Loading root key for verification (child index 0)");
+        load_public_key_for_verification()
+    } else {
+        // For child keys, check if they exist in the HD key store first
+        use crate::hd_keys::{load_hd_key_store};
+        let store = load_hd_key_store()?;
+        
+        if let Some(_key_info) = store.get_key(child_index) {
+            tracing::info!(
+                child_index = child_index,
+                "🔑 Child key exists in store, but using root key for verification (TSS limitation)"
+            );
+            
+            // Use root key for verification since signing also uses root TSS key
+            load_public_key_for_verification()
+        } else {
+            anyhow::bail!("Child key {} not found in HD key store", child_index);
+        }
+    }
+}
+
 fn load_public_key_for_verification() -> Result<Option<<tss_ecdsa::curve::TestCurve as CurveTrait>::VerifyingKey>> {
     use std::fs;
     
@@ -447,74 +478,93 @@ fn load_public_key_for_verification() -> Result<Option<<tss_ecdsa::curve::TestCu
     }
 }
 
-// Storage functions for keygen essentials (hybrid approach due to TSS serialization limitations)
-fn store_keygen_essentials(
+// Direct keygen output storage and loading - serialize the entire keygen result
+pub fn store_keygen_outputs(
     configs: &Vec<ParticipantConfig>,
     keygen_result: &crate::keygen::KeygenHelperOutput<tss_ecdsa::curve::TestCurve>
 ) -> Result<()> {
     use std::fs;
     
     tracing::debug!(
-        storage_path = "keygen_essentials.json",
         configs_count = configs.len(),
         keygen_outputs_count = keygen_result.keygen_outputs.len(),
-        "💾 Storing keygen essentials to filesystem"
+        "💾 Storing complete keygen result with all private shares to filesystem"
     );
     
-    let json_data = serde_json::to_string(&keygen_result)?;
+    // Serialize the entire KeygenHelperOutput directly (including all private shares)
+    let keygen_json = serde_json::to_string_pretty(keygen_result)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize keygen result: {}", e))?;
     
-    fs::write("keygen_essentials.json", json_data)?;
+    // Serialize configs separately using bincode for compatibility
+    let configs_bincode = bincode::serialize(configs)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize configs: {}", e))?;
+    
+    // Write both files
+    fs::write("keygen_result.json", keygen_json)?;
+    fs::write("keygen_configs.bin", configs_bincode)?;
     fs::write("keygen_completed.marker", "1")?;
     
     tracing::info!(
         configs_count = configs.len(),
-        "✅ Keygen essentials stored successfully (will regenerate outputs deterministically)"
+        outputs_count = keygen_result.keygen_outputs.len(),
+        "✅ Complete keygen result and configs stored successfully with all private shares"
     );
     
     Ok(())
 }
 
-fn load_keygen_and_regenerate() -> Result<(Vec<ParticipantConfig>, crate::keygen::KeygenHelperOutput<tss_ecdsa::curve::TestCurve>)> {
+pub fn load_keygen_outputs() -> Result<(Vec<ParticipantConfig>, crate::keygen::KeygenHelperOutput<tss_ecdsa::curve::TestCurve>)> {
     use std::fs;
     
     tracing::debug!(
-        storage_path = "keygen_essentials.json",
-        "📂 Loading keygen essentials and regenerating outputs"
+        keygen_path = "keygen_result.json",
+        configs_path = "keygen_configs.bin",
+        "📂 Loading complete keygen result and configs from storage"
     );
     
-    let json_data = fs::read_to_string("keygen_essentials.json")
-        .map_err(|_| anyhow::anyhow!("No keygen essentials found - will generate new keys"))?;
+    // Load keygen result
+    let keygen_json = fs::read_to_string("keygen_result.json")
+        .map_err(|_| anyhow::anyhow!("No keygen result found - will generate new keys"))?;
         
-    let keygen_result: KeygenHelperOutput<tss_ecdsa::curve::TestCurve> = serde_json::from_str(&json_data)
-        .map_err(|e| anyhow::anyhow!("Failed to deserialize keygen essentials: {}", e))?;
-    // compute configs from keygen_result
-    let all_ids: Vec<ParticipantIdentifier> = keygen_result.keygen_outputs.keys().cloned().collect();
-    let configs: Vec<ParticipantConfig> = all_ids.iter().map(|id| {
-            // remove id from all_ids to get others
-            let mut others = all_ids.clone();
-            others.retain(|other| other != id);
-            ParticipantConfig::new(*id, &others).unwrap()
-        }).collect();
+    let keygen_result: crate::keygen::KeygenHelperOutput<tss_ecdsa::curve::TestCurve> = 
+        serde_json::from_str(&keygen_json)
+            .map_err(|e| anyhow::anyhow!("Failed to deserialize keygen result: {}", e))?;
+    
+    // Load configs
+    let configs_bincode = fs::read("keygen_configs.bin")
+        .map_err(|_| anyhow::anyhow!("No keygen configs found"))?;
+        
+    let configs: Vec<ParticipantConfig> = bincode::deserialize(&configs_bincode)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize configs: {}", e))?;
+    
+    tracing::info!(
+        configs_count = configs.len(),
+        outputs_count = keygen_result.keygen_outputs.len(),
+        "✅ Complete keygen result and configs loaded successfully from storage"
+    );
     
     Ok((configs, keygen_result))
 }
 
-fn is_keygen_completed() -> bool {
+pub fn is_keygen_completed() -> bool {
     use std::fs;
     
     tracing::debug!(
         marker_path = "keygen_completed.marker",
-        essentials_path = "keygen_essentials.json",
+        keygen_path = "keygen_result.json",
+        configs_path = "keygen_configs.bin",
         "📂 Checking for keygen completion"
     );
     
     let marker_exists = fs::metadata("keygen_completed.marker").is_ok();
-    let essentials_exist = fs::metadata("keygen_essentials.json").is_ok();
-    let completed = marker_exists && essentials_exist;
+    let keygen_exists = fs::metadata("keygen_result.json").is_ok();
+    let configs_exist = fs::metadata("keygen_configs.bin").is_ok();
+    let completed = marker_exists && keygen_exists && configs_exist;
     
     tracing::debug!(
         marker_exists = marker_exists,
-        essentials_exist = essentials_exist,
+        keygen_exists = keygen_exists,
+        configs_exist = configs_exist,
         keygen_completed = completed,
         "🔍 Keygen completion status checked"
     );
@@ -543,7 +593,8 @@ pub async fn verify(Json(request): Json<VerifyRequest>) -> ResponseJson<VerifyRe
 
     let start_time = std::time::Instant::now();
     
-    match run_verification(&request.message, &request.signature).await {
+    let child_index = request.child_index.unwrap_or(0);
+    match run_verification(&request.message, &request.signature, child_index).await {
         Ok(is_valid) => {
             let duration = start_time.elapsed();
             
@@ -584,11 +635,14 @@ pub async fn verify(Json(request): Json<VerifyRequest>) -> ResponseJson<VerifyRe
     }
 }
 
-async fn run_verification(message: &str, signature_hex: &str) -> anyhow::Result<bool> {
-    // Load the stored public key
-    tracing::debug!("📂 Loading stored public key for verification");
-    let public_key = load_public_key_for_verification()?
-        .ok_or_else(|| anyhow::anyhow!("No public key found. Please run the signing protocol first to generate a key."))?;
+async fn run_verification(message: &str, signature_hex: &str, child_index: u32) -> anyhow::Result<bool> {
+    // Load the stored public key for the specified child index
+    tracing::debug!(
+        child_index = child_index,
+        "📂 Loading stored public key for verification"
+    );
+    let public_key = load_public_key_for_verification_with_child(child_index)?
+        .ok_or_else(|| anyhow::anyhow!("No public key found for child index {}. Please derive or generate the key first.", child_index))?;
     tracing::debug!("✅ Public key loaded successfully");
 
     // Decode the signature from hex

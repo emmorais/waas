@@ -7,6 +7,7 @@ mod tshare;
 mod presign;
 mod sign;
 mod delete_key;
+mod hd_keys;
 mod logging;
 
 use axum::{
@@ -82,6 +83,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/dashboard", get(dashboard::dashboard))
         .route("/keygen", post(keygen::keygen).get(keygen::check_keygen))
         .route("/delete_key", post(delete_key::delete_key))
+        .route("/derive_key", post(hd_keys::derive_key))
+        .route("/list_keys", get(hd_keys::list_keys))
+        .route("/delete_child_key", post(hd_keys::delete_child_key))
         .route("/sign", post(sign::sign))
         .route("/verify", post(sign::verify))
         // Serve everything under ./static, with index.html support

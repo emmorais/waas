@@ -1,0 +1,16 @@
+{
+  "root_key": {
+    "child_index": 0,
+    "public_key_hex": "02ff76d1d9c90c6cd7bab4319787b6b0521c34e2d5da9a836b3c85c4300668d98f",
+    "created_at": "2025-09-30T14:51:12.087624+00:00",
+    "label": "Root Key"
+  },
+  "derived_keys": {
+    "12": {
+      "child_index": 12,
+      "public_key_hex": "0385245deb1945a98d5c945cd9204149739989c8e22739b2b8ec1a70e0a5f65b4b",
+      "created_at": "2025-09-30T14:51:12.084580+00:00",
+      "label": "aaaaa"
+    }
+  }
+}
