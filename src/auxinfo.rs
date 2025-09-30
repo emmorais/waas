@@ -1,23 +1,11 @@
-use axum::{response::Json, response::IntoResponse};
-use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-use rand::{rngs::StdRng, SeedableRng, seq::SliceRandom};
+use rand::{rngs::StdRng, seq::SliceRandom};
 use tss_ecdsa::{
     auxinfo::AuxInfoParticipant,
-    curve::{CurveTrait, TestCurve},
+    curve::CurveTrait,
     messages::Message,
     ParticipantConfig, ParticipantIdentifier, ProtocolParticipant, Participant, Identifier,
 };
-
-const NUMBER_OF_WORKERS: usize = 3;
-
-#[derive(Serialize, Deserialize)]
-pub struct AuxInfoResponse {
-    pub message: String,
-    pub participants: Vec<String>,
-    pub auxinfo_count: usize,
-}
-
 // AuxInfoHelperOutput struct to match the one in your fork
 #[derive(Debug)]
 pub struct AuxInfoHelperOutput<C: CurveTrait> {
@@ -125,39 +113,4 @@ fn process_random_message<C: CurveTrait>(
 
 fn inboxes_are_empty(inboxes: &HashMap<ParticipantIdentifier, Vec<Message>>) -> bool {
     inboxes.values().all(|messages| messages.is_empty())
-}
-
-// Main auxinfo endpoint
-pub async fn auxinfo(_auth: crate::BasicAuth) -> impl IntoResponse {
-    match run_tss_auxinfo().await {
-        Ok(response) => Json(response),
-        Err(e) => {
-            tracing::error!("AuxInfo generation failed: {}", e);
-            Json(AuxInfoResponse {
-                message: format!("AuxInfo generation failed: {}", e),
-                participants: vec![],
-                auxinfo_count: 0,
-            })
-        }
-    }
-}
-
-async fn run_tss_auxinfo() -> anyhow::Result<AuxInfoResponse> {
-    let num_workers = NUMBER_OF_WORKERS;
-    
-    // Generate participant configurations
-    let mut rng = StdRng::from_entropy();
-    let configs = ParticipantConfig::random_quorum(num_workers, &mut rng)?;
-
-    // Call auxinfo_helper with the configs
-    let auxinfo_result = auxinfo_helper::<TestCurve>(configs.clone(), rng)?;
-
-    Ok(AuxInfoResponse {
-        message: "TSS AuxInfo generation completed successfully".to_string(),
-        participants: configs
-            .iter()
-            .map(|config| format!("{:?}", config.id()))
-            .collect(),
-        auxinfo_count: auxinfo_result.auxinfo_outputs.len(),
-    })
 }

@@ -203,6 +203,19 @@
       transform: translateY(-1px);
     }
 
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      margin: 6px;
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
     .hidden {
       display: none !important;
     }
@@ -445,6 +458,9 @@
           <button id="keygenBtn" class="btn btn-success">
             🔑 Generate Key Pair
           </button>
+          <button id="deleteKeyBtn" class="btn btn-danger">
+            🗑️ Delete Key Material
+          </button>
         </div>
 
         <!-- Message Operations -->
@@ -655,6 +671,63 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
         hideLoading();
         showError("⚠️ Key generation error: " + err.message);
         updateWalletDisplay("❌ Key generation failed. Please check the server connection and try again.", false);
+      }
+    };
+
+    document.getElementById("deleteKeyBtn").onclick = async () => {
+      try {
+        // Show confirmation dialog before deletion
+        if (!confirm("⚠️ Are you sure you want to delete all key material?\n\nThis action cannot be undone and will permanently remove:\n• Private key shares\n• Public keys\n• All cryptographic material\n• Configuration files\n\nYou will need to generate new keys to use the wallet again.")) {
+          return;
+        }
+
+        showLoading("🗑️ Deleting all key material from local storage...\n\nRemoving cryptographic keys and associated data...");
+        
+        let res = await fetch("https://localhost:8443/delete_key", {
+          method: "POST",
+          headers: { 
+            "Authorization": authHeader,
+            "Content-Type": "application/json"
+          }
+        });
+
+        hideLoading();
+
+        if (!res.ok) {
+          showError("❌ Failed to delete key material!");
+          return;
+        }
+
+        let data = await res.json();
+        
+        if (data.success) {
+          // Display successful deletion result
+          const deleteResult = `🗑️ Key Deletion Completed:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Status: ${data.message}
+
+📋 Deleted Files: ${data.deleted_files.length} items
+${data.deleted_files.map((file, i) => `   ${i + 1}. ${file}`).join('\n')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 All cryptographic material has been permanently removed
+   from local storage. The wallet is now in a clean state.
+   
+🔄 You can generate new keys using the "Generate Key Pair" 
+   button when ready to create a new wallet.`;
+          
+          updateWalletDisplay(deleteResult, false);
+        } else {
+          showError("❌ Key deletion failed: " + data.message);
+          updateWalletDisplay("❌ Key deletion failed: " + data.message, false);
+        }
+
+      } catch (err) {
+        hideLoading();
+        showError("⚠️ Key deletion error: " + err.message);
+        updateWalletDisplay("❌ Key deletion failed. Please check the server connection and try again.", false);
       }
     };
 

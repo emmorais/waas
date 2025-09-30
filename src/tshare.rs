@@ -1,24 +1,12 @@
-use axum::{response::Json, response::IntoResponse};
-use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-use rand::{rngs::StdRng, SeedableRng, seq::SliceRandom};
+use rand::{rngs::StdRng, seq::SliceRandom};
 use tss_ecdsa::{
     tshare::{TshareParticipant, Input as TshareInput, CoeffPrivate},
     auxinfo::AuxInfoParticipant,
-    curve::{CurveTrait, TestCurve, ScalarTrait},
+    curve::{CurveTrait, ScalarTrait},
     messages::Message,
     ParticipantConfig, ParticipantIdentifier, ProtocolParticipant, Participant, Identifier,
 };
-
-const NUMBER_OF_WORKERS: usize = 3;
-const THRESHOLD: usize = 2;
-
-#[derive(Serialize, Deserialize)]
-pub struct TshareResponse {
-    pub message: String,
-    pub participants: Vec<String>,
-    pub tshare_count: usize,
-}
 
 // TshareHelperOutput struct to match the one in your fork
 #[derive(Debug)]
@@ -147,48 +135,4 @@ fn process_random_message<C: CurveTrait>(
 
 fn inboxes_are_empty(inboxes: &HashMap<ParticipantIdentifier, Vec<Message>>) -> bool {
     inboxes.values().all(|messages| messages.is_empty())
-}
-
-// Main tshare endpoint
-pub async fn tshare(_auth: crate::BasicAuth) -> impl IntoResponse {
-    match run_tss_tshare().await {
-        Ok(response) => Json(response),
-        Err(e) => {
-            tracing::error!("Tshare generation failed: {}", e);
-            Json(TshareResponse {
-                message: format!("Tshare generation failed: {}", e),
-                participants: vec![],
-                tshare_count: 0,
-            })
-        }
-    }
-}
-
-async fn run_tss_tshare() -> anyhow::Result<TshareResponse> {
-    let num_workers = NUMBER_OF_WORKERS;
-    
-    // Generate participant configurations
-    let mut rng = StdRng::from_entropy();
-    let configs = ParticipantConfig::random_quorum(num_workers, &mut rng)?;
-
-    // First, we need auxinfo outputs for tshare
-    // Reusing the auxinfo_helper from auxinfo.rs
-    let auxinfo_result = crate::auxinfo::auxinfo_helper::<TestCurve>(configs.clone(), rng.clone())?;
-
-    // Call tshare_helper with the configs, auxinfo outputs, and threshold
-    let tshare_result = tshare_helper::<TestCurve>(
-        configs.clone(), 
-        auxinfo_result.auxinfo_outputs, 
-        THRESHOLD, 
-        rng
-    )?;
-
-    Ok(TshareResponse {
-        message: "TSS Tshare generation completed successfully".to_string(),
-        participants: configs
-            .iter()
-            .map(|config| format!("{:?}", config.id()))
-            .collect(),
-        tshare_count: tshare_result.tshare_outputs.len(),
-    })
 }

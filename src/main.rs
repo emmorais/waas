@@ -6,6 +6,7 @@ mod auxinfo;
 mod tshare;
 mod presign;
 mod sign;
+mod delete_key;
 mod logging;
 
 use axum::{
@@ -80,14 +81,15 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/dashboard", get(dashboard::dashboard))
         .route("/keygen", post(keygen::keygen).get(keygen::check_keygen))
+        .route("/delete_key", post(delete_key::delete_key))
         .route("/sign", post(sign::sign))
         .route("/verify", post(sign::verify))
         // Serve everything under ./static, with index.html support
         .fallback_service(ServeDir::new("src/static").append_index_html_on_directories(true));
 
     tracing::info!(
-        routes_count = 7,
-        routes = "/dashboard, /keygen (GET/POST), /auxinfo, /tshare, /presign, /sign, /verify",
+        routes_count = 8,
+        routes = "/dashboard, /keygen (GET/POST), /delete_key, /sign, /verify",
         static_content = "src/static",
         "✅ Application routes configured"
     );

@@ -362,32 +362,6 @@ fn load_stored_keygen_essentials() -> Result<StoredKeygenEssentials> {
     Ok(stored_data)
 }
 
-// Load and regenerate full keygen results (used by sign operations)
-fn load_keygen_and_regenerate() -> Result<(Vec<ParticipantConfig>, KeygenHelperOutput<TestCurve>)> {
-    use std::fs;
-    
-    let json_data = fs::read_to_string("keygen_essentials.json")
-        .map_err(|_| anyhow::anyhow!("No keygen essentials found"))?;
-        
-    let stored_data: StoredKeygenEssentials = serde_json::from_str(&json_data)
-        .map_err(|e| anyhow::anyhow!("Failed to deserialize keygen essentials: {}", e))?;
-    
-    let configs: Vec<ParticipantConfig> = bincode::deserialize(&stored_data.configs_serialized)
-        .map_err(|e| anyhow::anyhow!("Failed to deserialize configs: {}", e))?;
-    
-    // Regenerate keygen with fresh entropy but same configs
-    let keygen_rng = StdRng::from_entropy();
-    let keygen_result: KeygenHelperOutput<TestCurve> = {
-        let keygen_inboxes: HashMap<ParticipantIdentifier, Vec<Message>> = configs
-            .iter()
-            .map(|config| (config.id(), Vec::new()))
-            .collect();
-        keygen_helper(configs.clone(), keygen_inboxes, keygen_rng)?
-    };
-    
-    Ok((configs, keygen_result))
-}
-
 fn store_keygen_essentials(
     configs: &Vec<ParticipantConfig>,
     keygen_result: &KeygenHelperOutput<TestCurve>
