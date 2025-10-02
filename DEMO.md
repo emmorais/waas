@@ -61,7 +61,7 @@ cargo run
 
 1. **Click "Generate Key Pair"**
    - Shows distributed key generation protocol in action
-   - Generates threshold signature keys (2-of-3 scheme)
+   - Generates threshold signature keys (3-of-3 scheme)
    - Creates root key for HD wallet functionality
 
 2. **Observe the output:**
