@@ -209,6 +209,25 @@ cargo run
 
 ### Common Issues
 
+**❌ "Compiling"**
+````
+error: failed to parse manifest at `/home/eduardo/waas/Cargo.toml`
+
+Caused by:
+  feature `edition2024` is required
+
+  The package requires the Cargo feature called `edition2024`, but that feature is not stabilized in this version of Cargo (1.81.0 (2dbb1af80 2024-08-20)).
+  Consider trying a newer version of Cargo (this may require the nightly release).
+  See https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#edition-2024 for more information about the status of this feature.
+  ````
+
+  Fix: 
+  
+  ````
+  rustup update
+  ````
+
+
 **❌ "Connection refused"**
 - Ensure the server is running with `cargo run`
 - Check that port 8443 is not blocked by firewall
