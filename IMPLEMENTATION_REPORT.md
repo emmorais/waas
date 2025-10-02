@@ -2,13 +2,19 @@
 
 ## 📊 Executive Summary
 
-This report provides a comprehensive analysis of the current **Wallet as a Service (WaaS)** implementation, which serves as a proof-of-concept for threshold signature schemes (TSS) applied to cryptocurrency wallet infrastructure. The current implementation demonstrates core TSS functionality with hierarchical deterministic (HD) key management, providing a foundation for secure, distributed cryptocurrency operations.
+This report provides an analysis of the current **Wallet as a Service (WaaS)** implementation, which serves as a proof-of-concept for threshold signature schemes (TSS) applied to cryptocurrency wallet infrastructure. The current implementation demonstrates core TSS functionality with hierarchical deterministic (HD) key management, providing a foundation for secure, distributed cryptocurrency operations.
+
+The implementation is based on the work of Canetti et al.'s threshold ECDSA protocol as presented in
+
+[CGGMP20] R. Canetti, R. Gennaro, S. Goldfeder, N. Makriyannis, and U. Peled. UC non-interactive, proactive, threshold ECDSA with identifiable aborts. In ACM CCS 2020, pp. 1769–1787. ACM Press, 2020.
+
+The the paper [here](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
 
 ## 🏗️ Current Architecture Overview
 
 ### System Description
 
-The WaaS implementation is a **Rust-based HTTPS service** that provides threshold signature capabilities through a modern web interface. The system implements a complete TSS-ECDSA protocol stack with the following key components:
+The WaaS implementation is a **Rust-based HTTPS service** that provides threshold signature capabilities through a modern web interface. The system implements the TSS-ECDSA protocol stack with the following key components:
 
 - **Distributed Key Generation**: Multi-party computation for secure key generation
 - **Threshold Signatures**: Cryptographic signatures requiring cooperation from multiple parties  
