@@ -522,13 +522,41 @@
     let authHeader = "";
 
     // Utility functions for loading animations
+    let progressInterval;
+    
     function showLoading(text = "Processing your request...") {
       document.getElementById("loadingText").innerText = text;
       document.getElementById("loadingOverlay").classList.remove("hidden");
+      
+      // Clear any existing progress interval
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+    }
+
+    function showLoadingWithProgress(initialText) {
+      showLoading(initialText);
+      
+      let dots = 0;
+      let seconds = 0;
+      
+      progressInterval = setInterval(() => {
+        seconds += 1;
+        dots = (dots + 1) % 4;
+        const dotString = '.'.repeat(dots);
+        const timeString = seconds > 60 ? `${Math.floor(seconds/60)}m ${seconds%60}s` : `${seconds}s`;
+        
+        document.getElementById("loadingText").innerText = 
+          `${initialText}\n\nElapsed time: ${timeString}${dotString}\n\n⏳ Please wait - TSS operations are computationally intensive`;
+      }, 1000);
     }
 
     function hideLoading() {
       document.getElementById("loadingOverlay").classList.add("hidden");
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
     }
 
     function showError(message) {
@@ -645,22 +673,35 @@ ${existingData.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
         }
 
         // No existing keys found, generate new ones
-        showLoading("🔑 Generating new TSS cryptographic keys...\n\nThis involves secure multi-party computation\nand may take a few moments (up to 2 minutes)...");
+        showLoadingWithProgress("🔑 Generating new TSS cryptographic keys...\n\nThis may take 1-2 minutes on slower systems.\nPlease wait - performing complex threshold cryptography setup");
         
-        // Create AbortController for timeout handling
-        const keygenController = new AbortController();
-        const keygenTimeoutId = setTimeout(() => keygenController.abort(), 120000); // 2 minute timeout
+        // Use extended timeout approach for keygen as well
+        const keygenWithExtendedTimeout = async () => {
+          return new Promise(async (resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+              reject(new Error('EXTENDED_TIMEOUT: Key generation took longer than 10 minutes'));
+            }, 600000);
+            
+            try {
+              const response = await fetch("https://localhost:8443/keygen", {
+                method: "POST",
+                headers: { 
+                  "Authorization": authHeader,
+                  "Content-Type": "application/json"
+                },
+                keepalive: true
+              });
+              
+              clearTimeout(timeoutId);
+              resolve(response);
+            } catch (error) {
+              clearTimeout(timeoutId);
+              reject(error);
+            }
+          });
+        };
         
-        let res = await fetch("https://localhost:8443/keygen", {
-          method: "POST",
-          headers: { 
-            "Authorization": authHeader,
-            "Content-Type": "application/json"
-          },
-          signal: keygenController.signal
-        });
-        
-        clearTimeout(keygenTimeoutId); // Clear timeout if request completes
+        let res = await keygenWithExtendedTimeout();
 
         hideLoading();
 
@@ -698,13 +739,18 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
 
       } catch (err) {
         hideLoading();
-        if (err.name === 'AbortError') {
-          showError("⏱️ Key generation timed out after 2 minutes. TSS operations can take time - please wait for server to complete.");
-          updateWalletDisplay("⏱️ TSS Key Generation Timeout\n\nThe key generation is taking longer than expected (>2 minutes).\nThis is normal for the first run or on slower systems.\n\nPlease check the server logs to see if the operation completed successfully.\nIf successful, try clicking 'Generate Key Pair' again to load the existing keys.", false);
+        console.error("Keygen error details:", err);
+        
+        if (err.message && err.message.includes('EXTENDED_TIMEOUT')) {
+          showError("⏱️ Key generation exceeded 10-minute limit. Please check server logs.");
+          updateWalletDisplay("⏱️ Extended Timeout (>10 minutes)\n\nKey generation has exceeded the maximum wait time.\nThis may indicate a server issue.\n\nPlease:\n1. Check server logs for completion status\n2. Restart the server if needed\n3. Try key generation again", false);
+        } else if (err.name === 'AbortError' || err.message.includes('timeout') || err.message.includes('network')) {
+          showError("⏱️ Network timeout during key generation - check server logs for completion.");
+          updateWalletDisplay(`⏱️ Network/Browser Timeout\n\nThe browser stopped waiting for key generation.\nServer may still be processing the operation.\n\nError details: ${err.message}\n\nPlease:\n1. Check server logs to see if keygen completed\n2. Try clicking 'Generate Key Pair' again to load existing keys\n3. First-time key generation is typically slower`, false);
         } else {
           console.error("Keygen error:", err);
           showError("⚠️ Key generation error: " + err.message);
-          updateWalletDisplay("❌ Key generation failed. Please check the server connection and try again.", false);
+          updateWalletDisplay(`❌ Key Generation Error\n\nDetailed error: ${err.message}\n\nPlease check server logs and ensure:\n1. Server is running properly\n2. Network connection is stable\n3. Sufficient system resources available`, false);
         }
       }
     };
@@ -775,28 +821,43 @@ ${data.deleted_files.map((file, i) => `   ${i + 1}. ${file}`).join('\n')}
           return;
         }
 
-        showLoading("🔐 Signing message with TSS protocol...\n\nExecuting distributed signature generation\nacross multiple secure parties...");
+        showLoadingWithProgress("🔐 Signing message with TSS protocol...\n\nThis may take 1-2 minutes on slower systems.\nPlease wait - performing complex cryptographic calculations");
         
         const selectedChildIndex = parseInt(document.getElementById("keySelector").value);
         
-        // Create AbortController for timeout handling
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+        // Use a Promise-based approach to handle very long operations
+        const signWithExtendedTimeout = async () => {
+          return new Promise(async (resolve, reject) => {
+            // Set a very long timeout (10 minutes) to prevent any browser interference
+            const timeoutId = setTimeout(() => {
+              reject(new Error('EXTENDED_TIMEOUT: Operation took longer than 10 minutes'));
+            }, 600000);
+            
+            try {
+              const response = await fetch("https://localhost:8443/sign", {
+                method: "POST",
+                headers: { 
+                  "Authorization": authHeader,
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  message: messageToSign,
+                  child_index: selectedChildIndex
+                }),
+                // Remove signal to avoid AbortController issues
+                keepalive: true // Helps prevent browser from canceling long requests
+              });
+              
+              clearTimeout(timeoutId);
+              resolve(response);
+            } catch (error) {
+              clearTimeout(timeoutId);
+              reject(error);
+            }
+          });
+        };
         
-        let res = await fetch("https://localhost:8443/sign", {
-          method: "POST",
-          headers: { 
-            "Authorization": authHeader,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            message: messageToSign,
-            child_index: selectedChildIndex
-          }),
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId); // Clear timeout if request completes
+        let res = await signWithExtendedTimeout();
 
         hideLoading();
 
@@ -856,13 +917,17 @@ ${data.success ? '✅' : '❌'} Status: ${data.message}
 
       } catch (err) {
         hideLoading();
-        if (err.name === 'AbortError') {
-          showError("⏱️ Request timed out after 2 minutes. TSS operations can take time - please wait for server to complete.");
-          updateWalletDisplay("⏱️ TSS Operation Timeout\n\nThe signature generation is taking longer than expected (>2 minutes).\nThis can happen during the first run or on slower systems.\n\nPlease check the server logs to see if the operation completed successfully.\nIf successful, you can try the verify operation with the generated signature.", false);
+        console.error("Signing error details:", err);
+        
+        if (err.message && err.message.includes('EXTENDED_TIMEOUT')) {
+          showError("⏱️ Operation exceeded 10-minute limit. Please check server logs and restart if needed.");
+          updateWalletDisplay("⏱️ Extended Timeout (>10 minutes)\n\nThe operation has exceeded the maximum wait time.\nThis is unusual and may indicate a server issue.\n\nPlease:\n1. Check server logs for error messages\n2. Restart the server if needed\n3. Try the operation again", false);
+        } else if (err.name === 'AbortError' || err.message.includes('timeout') || err.message.includes('network')) {
+          showError("⏱️ Network timeout or connection issue detected.");
+          updateWalletDisplay(`⏱️ Network/Browser Timeout\n\nThe browser stopped waiting for the server response.\nServer may still be processing the request.\n\nError details: ${err.message}\n\nPlease:\n1. Check server logs to see if operation completed\n2. Wait a moment and try again\n3. First-time operations are typically slower`, false);
         } else {
-          console.error("Signing error:", err);
           showError("⚠️ Message signing error: " + err.message);
-          updateWalletDisplay("❌ TSS signature generation failed. Please check the server connection and try again.", false);
+          updateWalletDisplay(`❌ TSS Signature Generation Error\n\nDetailed error: ${err.message}\n\nPlease check the server logs for more information and ensure:\n1. Keys have been generated\n2. Server is running properly\n3. Network connection is stable`, false);
         }
       }
     };
