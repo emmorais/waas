@@ -645,15 +645,22 @@ ${existingData.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
         }
 
         // No existing keys found, generate new ones
-        showLoading("🔑 Generating new TSS cryptographic keys...\n\nThis involves secure multi-party computation\nand may take a few moments...");
+        showLoading("🔑 Generating new TSS cryptographic keys...\n\nThis involves secure multi-party computation\nand may take a few moments (up to 2 minutes)...");
+        
+        // Create AbortController for timeout handling
+        const keygenController = new AbortController();
+        const keygenTimeoutId = setTimeout(() => keygenController.abort(), 120000); // 2 minute timeout
         
         let res = await fetch("https://localhost:8443/keygen", {
           method: "POST",
           headers: { 
             "Authorization": authHeader,
             "Content-Type": "application/json"
-          }
+          },
+          signal: keygenController.signal
         });
+        
+        clearTimeout(keygenTimeoutId); // Clear timeout if request completes
 
         hideLoading();
 
@@ -691,8 +698,14 @@ ${data.participants.map((p, i) => `   ${i + 1}. ${p}`).join('\n')}
 
       } catch (err) {
         hideLoading();
-        showError("⚠️ Key generation error: " + err.message);
-        updateWalletDisplay("❌ Key generation failed. Please check the server connection and try again.", false);
+        if (err.name === 'AbortError') {
+          showError("⏱️ Key generation timed out after 2 minutes. TSS operations can take time - please wait for server to complete.");
+          updateWalletDisplay("⏱️ TSS Key Generation Timeout\n\nThe key generation is taking longer than expected (>2 minutes).\nThis is normal for the first run or on slower systems.\n\nPlease check the server logs to see if the operation completed successfully.\nIf successful, try clicking 'Generate Key Pair' again to load the existing keys.", false);
+        } else {
+          console.error("Keygen error:", err);
+          showError("⚠️ Key generation error: " + err.message);
+          updateWalletDisplay("❌ Key generation failed. Please check the server connection and try again.", false);
+        }
       }
     };
 
@@ -766,6 +779,10 @@ ${data.deleted_files.map((file, i) => `   ${i + 1}. ${file}`).join('\n')}
         
         const selectedChildIndex = parseInt(document.getElementById("keySelector").value);
         
+        // Create AbortController for timeout handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+        
         let res = await fetch("https://localhost:8443/sign", {
           method: "POST",
           headers: { 
@@ -775,8 +792,11 @@ ${data.deleted_files.map((file, i) => `   ${i + 1}. ${file}`).join('\n')}
           body: JSON.stringify({
             message: messageToSign,
             child_index: selectedChildIndex
-          })
+          }),
+          signal: controller.signal
         });
+        
+        clearTimeout(timeoutId); // Clear timeout if request completes
 
         hideLoading();
 
@@ -836,8 +856,14 @@ ${data.success ? '✅' : '❌'} Status: ${data.message}
 
       } catch (err) {
         hideLoading();
-        showError("⚠️ Message signing error: " + err.message);
-        updateWalletDisplay("❌ TSS signature generation failed. Please check the server connection and try again.", false);
+        if (err.name === 'AbortError') {
+          showError("⏱️ Request timed out after 2 minutes. TSS operations can take time - please wait for server to complete.");
+          updateWalletDisplay("⏱️ TSS Operation Timeout\n\nThe signature generation is taking longer than expected (>2 minutes).\nThis can happen during the first run or on slower systems.\n\nPlease check the server logs to see if the operation completed successfully.\nIf successful, you can try the verify operation with the generated signature.", false);
+        } else {
+          console.error("Signing error:", err);
+          showError("⚠️ Message signing error: " + err.message);
+          updateWalletDisplay("❌ TSS signature generation failed. Please check the server connection and try again.", false);
+        }
       }
     };
 

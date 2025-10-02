@@ -46,6 +46,12 @@ A **Threshold Signature Scheme (TSS) based wallet service** built with Rust, pro
 ### Prerequisites
 - **Rust** (latest stable version)
 
+### Performance Notes
+- **First-time operations** (keygen, signing) can take 60+ seconds on slower systems
+- **Subsequent operations** are typically much faster due to cached cryptographic material
+- **TSS operations** are computationally intensive - this is expected behavior
+- **Browser timeout** is set to 2 minutes - server continues processing after timeout
+
 ### Clone and Build
 ```bash
 git clone https://github.com/emmorais/waas.git
@@ -245,14 +251,24 @@ Caused by:
 - Ensure `keygen_result.json` file exists in working directory
 
 **❌ "TSS signature generation failed" but server logs show success**
+- **Most common cause**: Browser timeout (operations take 60+ seconds on slower systems)
+- Check server logs to see if operation completed successfully after timeout
+- TSS operations have 2-minute browser timeout - server may still be processing
+- If server shows success, the signature was generated but not returned to browser
 - Open browser developer tools (F12) and check Console tab for detailed errors
 - Look for JSON parsing errors or network issues in the browser console
-- Verify the server response format matches expected JSON structure
-- Check if the response is being truncated or corrupted
 - This can happen due to:
+  - **Browser request timeout** (most common on first run or slower systems)
   - Network connectivity issues between browser and server
   - Browser security policies blocking the response
   - Malformed JSON responses (check server logs for serialization errors)
+
+**⏱️ "Request timed out after 2 minutes"**
+- This is **normal behavior** for TSS operations on slower systems
+- The server continues processing even after browser timeout
+- Check server logs to confirm if operation completed successfully
+- If successful, try the operation again - it may use cached results and be faster
+- First-time operations are typically slower due to cryptographic setup
 
 **❌ Browser shows "network error" for successful operations**
 - Check browser developer console (F12 → Console tab) for detailed error messages

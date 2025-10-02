@@ -258,11 +258,18 @@ cargo run
 - Restart demo from clean state if needed
 
 **"TSS signature generation failed" with successful server logs:**
-- Open browser developer tools (F12 → Console tab)
-- Look for detailed error messages in the console
-- Check if JSON parsing is failing
-- Verify network connectivity between browser and server
-- Try refreshing the page if the issue persists
+- **Most likely cause**: Browser timeout (TSS operations can take 60+ seconds)
+- Server continues processing after browser timeout - check server logs
+- **First-time operations are slower** - subsequent operations use cached data
+- Open browser developer tools (F12 → Console tab) for detailed error messages
+- If server logs show success, the operation worked but browser timed out
+- Try the operation again - it may be faster due to caching
+
+**"Request timed out after 2 minutes":**
+- This is **expected behavior** on slower systems or first-time runs
+- TSS cryptographic operations are computationally intensive
+- Server continues processing - check logs for completion status
+- Subsequent operations will be significantly faster
 
 ## 🎊 Demo Conclusion
 
