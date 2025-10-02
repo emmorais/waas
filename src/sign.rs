@@ -43,7 +43,7 @@ pub struct VerifyResponse {
     pub message: String,
 }
 
-#[derive(Debug)]
+#[allow(dead_code)]
 pub struct SignHelperInput {
     pub public_key_shares: Vec<KeySharePublic<tss_ecdsa::curve::TestCurve>>,
     pub saved_public_key: <tss_ecdsa::curve::TestCurve as CurveTrait>::VerifyingKey,

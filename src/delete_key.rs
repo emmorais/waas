@@ -176,14 +176,3 @@ fn find_files_by_pattern(pattern: &str) -> Result<Vec<String>> {
     
     Ok(matching_files)
 }
-
-/// Check if any key material exists in local storage
-pub async fn check_key_existence() -> bool {
-    let key_files = [
-        "keygen_completed.marker",
-        "keygen_essentials.json", 
-        "public_key.bin",
-    ];
-    
-    key_files.iter().any(|file| fs::metadata(file).is_ok())
-}

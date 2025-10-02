@@ -1,24 +1,13 @@
-use axum::{response::Json, response::IntoResponse};
-use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-use rand::{rngs::StdRng, SeedableRng, seq::SliceRandom};
+use rand::{rngs::StdRng, seq::SliceRandom};
 use tss_ecdsa::{
     auxinfo::AuxInfoParticipant,
-    curve::{CurveTrait, TestCurve},
+    curve::CurveTrait,
     keygen::KeygenParticipant,
     messages::Message,
     presign::{PresignParticipant, Input as PresignInput},
     ParticipantConfig, ParticipantIdentifier, ProtocolParticipant, Participant, Identifier,
 };
-
-const NUMBER_OF_WORKERS: usize = 3;
-
-#[derive(Serialize, Deserialize)]
-pub struct PresignResponse {
-    pub message: String,
-    pub participants: Vec<String>,
-    pub presign_count: usize,
-}
 
 // PresignHelperOutput struct to match the one in your fork
 #[derive(Debug)]
@@ -137,68 +126,4 @@ fn process_random_message<C: CurveTrait>(
 
 fn inboxes_are_empty(inboxes: &HashMap<ParticipantIdentifier, Vec<Message>>) -> bool {
     inboxes.values().all(|messages| messages.is_empty())
-}
-
-// Main presign endpoint
-pub async fn presign(_auth: crate::BasicAuth) -> impl IntoResponse {
-    match run_tss_presign().await {
-        Ok(response) => Json(response),
-        Err(e) => {
-            tracing::error!("Presign generation failed: {}", e);
-            Json(PresignResponse {
-                message: format!("Presign generation failed: {}", e),
-                participants: vec![],
-                presign_count: 0,
-            })
-        }
-    }
-}
-
-async fn run_tss_presign() -> anyhow::Result<PresignResponse> {
-    let num_workers = NUMBER_OF_WORKERS;
-    
-    // Generate participant configurations
-    let mut rng = StdRng::from_entropy();
-    let configs = ParticipantConfig::random_quorum(num_workers, &mut rng)?;
-
-    // For demonstration purposes, we need to run the actual protocols to get real outputs
-    // In a real implementation, these would be loaded from secure storage
-    
-    // First run keygen to get the outputs
-    use crate::keygen::{keygen_helper, KeygenHelperOutput};
-    let keygen_result: KeygenHelperOutput<TestCurve> = {
-        let keygen_inboxes: HashMap<ParticipantIdentifier, Vec<Message>> = configs
-            .iter()
-            .map(|config| (config.id(), Vec::new()))
-            .collect();
-        keygen_helper(configs.clone(), keygen_inboxes, rng.clone())?
-    };
-
-    // Then run auxinfo to get the outputs
-    use crate::auxinfo::{auxinfo_helper, AuxInfoHelperOutput};
-    let auxinfo_result: AuxInfoHelperOutput<TestCurve> = auxinfo_helper(configs.clone(), rng.clone())?;
-
-    let keygen_outputs = keygen_result.keygen_outputs;
-    let auxinfo_outputs = auxinfo_result.auxinfo_outputs;
-
-    // Use the inboxes from auxinfo
-    let mut inboxes = auxinfo_result.inboxes;
-
-    // Call presign_helper with the configs and outputs
-    let presign_result = presign_helper::<TestCurve>(
-        configs.clone(), 
-        auxinfo_outputs, 
-        keygen_outputs, 
-        &mut inboxes, 
-        rng
-    )?;
-
-    Ok(PresignResponse {
-        message: "TSS Presign generation completed successfully".to_string(),
-        participants: configs
-            .iter()
-            .map(|config| format!("{:?}", config.id()))
-            .collect(),
-        presign_count: presign_result.presign_outputs.len(),
-    })
 }

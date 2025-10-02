@@ -5,5 +5,12 @@
     "created_at": "2025-09-30T14:51:12.087624+00:00",
     "label": "Root Key"
   },
-  "derived_keys": {}
+  "derived_keys": {
+    "65": {
+      "child_index": 65,
+      "public_key_hex": "02c9a3f51f3b4edb5b3ea8b7ef63da16553a8f59683b2bf178d1e51afee8028ea8",
+      "created_at": "2025-10-02T16:49:30.895475+00:00",
+      "label": "wdawdadwa"
+    }
+  }
 }

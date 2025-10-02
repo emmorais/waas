@@ -3,7 +3,6 @@
 mod dashboard;
 mod keygen;
 mod auxinfo;
-mod tshare;
 mod presign;
 mod sign;
 mod delete_key;
@@ -18,6 +17,7 @@ use base64::{engine::general_purpose, Engine as _};
 use tower_http::services::ServeDir;
 use std::{future::Future, net::SocketAddr};
 
+#[allow(dead_code)]
 struct BasicAuth {
     username: String,
     password: String,

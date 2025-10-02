@@ -7,14 +7,11 @@ A **Threshold Signature Scheme (TSS) based wallet service** built with Rust, pro
 ### Core TSS Operations
 - **🔑 Distributed Key Generation**: Generate cryptographic keys across multiple parties using threshold cryptography
 - **✍️ Threshold Signatures**: Create signatures that require cooperation from multiple parties
-- **🔍 Signature Verification**: Verify signatures against public keys with cryptographic proof
+- **🔍 Signature Verification**: Verify signatures against public keys
 - **🗑️ Secure Key Deletion**: Safely remove all cryptographic material from storage
 
 ### Hierarchical Deterministic (HD) Wallet
 - **🌱 Child Key Derivation**: Generate deterministic child keys from a master key
-- **📋 Key Management**: List, label, and organize derived keys
-- **🔢 Custom Indexing**: Generate keys at specific derivation paths
-- **🏷️ Key Labeling**: Assign human-readable labels to derived keys
 
 ### Security & Infrastructure
 - **🛡️ HTTPS/TLS**: All communications encrypted with self-signed certificates
@@ -48,7 +45,6 @@ A **Threshold Signature Scheme (TSS) based wallet service** built with Rust, pro
 
 ### Prerequisites
 - **Rust** (latest stable version)
-- **OpenSSL** development libraries
 
 ### Clone and Build
 ```bash
@@ -208,10 +204,6 @@ cargo run
 3. Make your changes
 4. Test thoroughly
 5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Troubleshooting
 
