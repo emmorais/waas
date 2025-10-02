@@ -54,10 +54,13 @@ A **Threshold Signature Scheme (TSS) based wallet service** built with Rust, pro
 - **Progress indicator** shows elapsed time and keeps users informed during long operations
 
 ### Browser Compatibility
-- **✅ Chrome/Edge**: Optimal performance, handles long requests seamlessly
-- **🦊 Firefox**: Enhanced compatibility mode automatically enabled (overcomes 1-minute timeout)
-- **🧭 Safari**: Generally compatible, may show timeout warnings for very long operations
-- **📱 Mobile browsers**: Limited testing, desktop browsers recommended for development
+- **✅ Chrome**: Fully tested and supported on Linux and Mac
+- **⚠️ Firefox**: Known timeout issues with long TSS operations (not currently supported)
+- **⚠️ Safari**: Known timeout issues with long TSS operations (not currently supported)
+- **⚠️ Edge**: Not tested, compatibility unknown
+- **📱 Mobile browsers**: Not tested, desktop Chrome recommended for development
+
+**Recommendation**: Use Google Chrome for optimal experience. The application has been tested exclusively with Chrome on Linux and Mac systems.
 
 ### Clone and Build
 ```bash
@@ -279,9 +282,9 @@ Caused by:
 
 **❌ "NetworkError when attempting to fetch resource"**
 - **Most common cause**: Server not running or not accessible on https://localhost:8443
-- **Firefox-specific issue**: Firefox enforces 1-minute timeout on localhost HTTPS requests
-  - **Automatic fix**: Enhanced compatibility mode now enabled for Firefox users
-  - **Alternative**: Use Chrome/Edge for optimal experience with long TSS operations
+- **Browser compatibility issues**: Firefox and Safari have known timeout issues with long TSS operations
+  - **Solution**: Use Google Chrome instead - fully tested and supported
+  - **Status**: Firefox and Safari support is not currently available
 - **Check server status**: Ensure `cargo run` is active and shows "Ready to process TSS operations!"
 - **Certificate issues**: Make sure you accepted the self-signed certificate warning in browser
 - **Port conflicts**: Verify port 8443 is not used by another process (`lsof -i :8443` on Linux/Mac)
