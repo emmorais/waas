@@ -94,7 +94,7 @@ The WaaS implementation is a **Rust-based HTTPS service** that provides threshol
 **Objective:** Implement auxiliary information persistence to optimize protocol efficiency.
 
 **Technical Details:**
-- **AuxInfo Purpose**: Contains preprocessed cryptographic material that can be reused across multiple signing operations
+- **AuxInfo Purpose**: Contains cryptographic keys that could be reused across multiple signing operations (optimization not implemented yet)
 - **Storage Strategy**: Serialize AuxInfo objects to binary format using `bincode` or `serde_json`
 - **File Structure**: Create `auxinfo_data.bin` alongside existing storage files
 - **Performance Impact**: Reduces computational overhead for subsequent signing operations by 40-60%
