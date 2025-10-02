@@ -123,9 +123,9 @@ Currently all the shares are stored in the same place, and all the participants 
 
 **Objective:** Implement full BIP32/BIP44 compatibility with multi-level hierarchies and multiple curves. 
 
-### 7. Hardware protection 
+### 7. Key protection 
 
-**Objective:** Implement enterprise-grade private key protection using hardware security, like HSMs, or at least implement file encryption using symmetric encryption based on a master key.
+**Objective:** Implement enterprise-grade private key protection possibly using hardware security, like HSMs, or at least implement file encryption using symmetric encryption based on a master key.
 
 **Key Protection Levels:**
 1. **Level 1 - Software**: Encrypted key files with OS keychain integration
