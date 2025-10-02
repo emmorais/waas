@@ -115,23 +115,17 @@ Currently all the shares are stored in the same place, and all the participants 
 
 **Objective:** Implement enterprise-grade authentication with multi-factor support.
 
-**Authentication Strategy:**
-- **OAuth 2.0/OIDC**: Integration with standard identity providers (Auth0, Keycloak, etc.)
-- **JWT Tokens**: Stateless authentication with proper token management
-- **2FA Support**: TOTP (Time-based One-Time Password) using authenticator apps
-- **Session Management**: Secure session handling with proper expiration
-
 ### 6. Multi-User System with Account Isolation
 
 **Objective:** Enable multiple users with complete isolation of cryptographic material.
 
 ### 7. Advanced HD Wallet Functionality
 
-**Objective:** Implement full BIP32/BIP44 compatibility with multi-level hierarchies and multiple curves. Support different curves. 
+**Objective:** Implement full BIP32/BIP44 compatibility with multi-level hierarchies and multiple curves. 
 
 ### 7. Hardware protection 
 
-**Objective:** Implement enterprise-grade private key protection using hardware security, like HSMs.
+**Objective:** Implement enterprise-grade private key protection using hardware security, like HSMs, or at least implement file encryption using symmetric encryption based on a master key.
 
 **Key Protection Levels:**
 1. **Level 1 - Software**: Encrypted key files with OS keychain integration
