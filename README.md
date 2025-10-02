@@ -1,6 +1,6 @@
 # 🔐 Wallet as a Service (WaaS)
 
-A **Threshold Signature Scheme (TSS) based wallet service** built with Rust, providing secure multi-party computation for cryptocurrency operations. This service implements distributed key generation, hierarchical deterministic (HD) keys, and threshold signatures without any single point of failure.
+A **Threshold Signature Scheme (TSS) based wallet service** built with Rust, providing secure multi-party computation for cryptocurrency operations. This service implements distributed key generation, hierarchical deterministic (HD) keys, and threshold signatures in order to avoid single point of failure.
 
 ## 🚀 Features
 
@@ -19,20 +19,9 @@ A **Threshold Signature Scheme (TSS) based wallet service** built with Rust, pro
 - **💾 Persistent Storage**: Keys and configurations saved to local files
 - **🌐 Web UI**: Modern, responsive interface for all operations
 
-## 🏗️ Architecture
-
-### Backend Components
-- **`src/main.rs`**: HTTPS server setup with TLS and route configuration
-- **`src/keygen.rs`**: TSS key generation protocol implementation
-- **`src/sign.rs`**: Message signing and signature verification
-- **`src/hd_keys.rs`**: Hierarchical deterministic key derivation
-- **`src/delete_key.rs`**: Secure key material deletion
-- **`src/dashboard.rs`**: API endpoints for web interface
-
 ### Cryptographic Libraries
 - **`tss-ecdsa`**: Core threshold signature implementation
 - **`k256`**: Elliptic curve operations (secp256k1)
-- **`hmac/sha2`**: Key derivation functions for HD wallets
 - **`ecdsa`**: ECDSA signature verification
 
 ### Storage Format
@@ -47,11 +36,7 @@ A **Threshold Signature Scheme (TSS) based wallet service** built with Rust, pro
 - **Rust** (latest stable version)
 
 ### Performance Notes
-- **First-time operations** (keygen, signing) can take 60+ seconds on slower systems
-- **Subsequent operations** are typically much faster due to cached cryptographic material
-- **TSS operations** are computationally intensive - this is expected behavior
-- **Browser timeout** extended to 10 minutes with progress tracking
-- **Progress indicator** shows elapsed time and keeps users informed during long operations
+- **Signing** can take 60+ seconds on slower systems
 
 ### Browser Compatibility
 - **✅ Chrome**: Fully tested and supported on Linux and Mac
@@ -74,11 +59,6 @@ cargo build --release
 ### Start the Service
 ```bash
 cargo run
-```
-
-Or using the compiled binary:
-```bash
-./target/release/waas
 ```
 
 ### Server Output
@@ -213,14 +193,6 @@ cargo run
 # Access https://localhost:8443/ to test UI
 ```
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
 ## 🆘 Troubleshooting
 
 ### Common Issues
@@ -262,23 +234,6 @@ Caused by:
 
 **❌ "TSS signature generation failed" but server logs show success**
 - **Most common cause**: Browser/network timeout (operations take 60+ seconds on slower systems)
-- **Updated timeout handling**: Browser now waits up to 10 minutes with progress indicator
-- Check server logs to see if operation completed successfully after any timeout
-- If server shows success, the signature was generated but browser timed out
-- Open browser developer tools (F12) and check Console tab for detailed errors
-- This can happen due to:
-  - **Browser/network request timeout** (most common on first run or slower systems)
-  - Network connectivity issues between browser and server
-  - Browser security policies blocking long-running requests
-  - System resource constraints during intensive cryptographic operations
-
-**⏱️ "Network/Browser timeout" messages**
-- **Enhanced timeout handling**: Operations now have 10-minute browser timeout with progress tracking
-- **Progress indicator** shows elapsed time during long operations
-- Server continues processing even after any browser timeout occurs
-- Check server logs to confirm if operation completed successfully
-- If successful, try the operation again - it may use cached results and be faster
-- **First-time operations are typically slower** due to cryptographic setup and initialization
 
 **❌ "NetworkError when attempting to fetch resource"**
 - **Most common cause**: Server not running or not accessible on https://localhost:8443
@@ -290,13 +245,3 @@ Caused by:
 - **Port conflicts**: Verify port 8443 is not used by another process (`lsof -i :8443` on Linux/Mac)
 - **Firewall blocking**: Check if firewall is blocking port 8443
 - **Enhanced debugging**: Open browser dev tools (F12) → Console tab for detailed connection logs
-- **Test connectivity**: The login process now tests server connection automatically
-
-**❌ Browser shows "network error" for successful operations**
-- Check browser developer console (F12 → Console tab) for detailed error messages
-- Verify CORS headers are properly set (not typically an issue with same-origin requests)
-- Ensure the response Content-Type is `application/json`
-- Try refreshing the page and clearing browser cache
-
-### Support
-For issues and questions, please open an issue on the [GitHub repository](https://github.com/emmorais/waas).
