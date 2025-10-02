@@ -127,12 +127,6 @@ Currently all the shares are stored in the same place, and all the participants 
 
 **Objective:** Implement enterprise-grade private key protection possibly using hardware security, like HSMs, or at least implement file encryption using symmetric encryption based on a master key.
 
-**Key Protection Levels:**
-1. **Level 1 - Software**: Encrypted key files with OS keychain integration
-2. **Level 2 - Hardware Tokens**: YubiKey/Nitrokey for private key shares
-3. **Level 3 - Dedicated HSM**: Network-attached HSM appliances
-4. **Level 4 - Cloud HSM**: AWS CloudHSM, Azure Dedicated HSM
-
 ## Final remarks
 
 This implementation is a simple MVP towards making threshold cryptography accessible and practical for real-world cryptocurrency custody and wallet applications.
