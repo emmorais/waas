@@ -8,7 +8,7 @@ The implementation is based on the work of Canetti et al.'s threshold ECDSA prot
 
 [CGGMP20] R. Canetti, R. Gennaro, S. Goldfeder, N. Makriyannis, and U. Peled. UC non-interactive, proactive, threshold ECDSA with identifiable aborts. In ACM CCS 2020, pp. 1769–1787. ACM Press, 2020.
 
-The the paper [here](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
+See the paper [here](https://eprint.iacr.org/archive/2021/060/1634824619.pdf).
 
 ## 🏗️ Current Architecture Overview
 
@@ -109,7 +109,7 @@ The service can do pre-computation that will make the online phase of the protoc
 
 ### 4. Distributed Coordinator Architecture
 
-Currently all the shares are stored in the same place, and all the participants are actually running in the same machine. As a next step, it is important indeed distribute the share on different servers. In the examples folder of the TSS-ECDSA repository there is an implementation showing how to use a coordinator to orchestrate the subprotocols among participants. 
+Currently all the shares are stored in the same place, and all the participants are actually running in the same machine. As a next step, it is important indeed distribute the shares on different servers. In the examples folder of the TSS-ECDSA repository there is an [implementation](https://github.com/emmorais/tss-ecdsa/blob/main/examples/threaded_example/threaded.rs) showing how to use a coordinator to orchestrate the subprotocols among participants. 
 
 ### 5. 🔐 Enhanced Authentication Framework
 
