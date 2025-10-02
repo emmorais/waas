@@ -53,6 +53,12 @@ A **Threshold Signature Scheme (TSS) based wallet service** built with Rust, pro
 - **Browser timeout** extended to 10 minutes with progress tracking
 - **Progress indicator** shows elapsed time and keeps users informed during long operations
 
+### Browser Compatibility
+- **✅ Chrome/Edge**: Optimal performance, handles long requests seamlessly
+- **🦊 Firefox**: Enhanced compatibility mode automatically enabled (overcomes 1-minute timeout)
+- **🧭 Safari**: Generally compatible, may show timeout warnings for very long operations
+- **📱 Mobile browsers**: Limited testing, desktop browsers recommended for development
+
 ### Clone and Build
 ```bash
 git clone https://github.com/emmorais/waas.git
@@ -270,6 +276,18 @@ Caused by:
 - Check server logs to confirm if operation completed successfully
 - If successful, try the operation again - it may use cached results and be faster
 - **First-time operations are typically slower** due to cryptographic setup and initialization
+
+**❌ "NetworkError when attempting to fetch resource"**
+- **Most common cause**: Server not running or not accessible on https://localhost:8443
+- **Firefox-specific issue**: Firefox enforces 1-minute timeout on localhost HTTPS requests
+  - **Automatic fix**: Enhanced compatibility mode now enabled for Firefox users
+  - **Alternative**: Use Chrome/Edge for optimal experience with long TSS operations
+- **Check server status**: Ensure `cargo run` is active and shows "Ready to process TSS operations!"
+- **Certificate issues**: Make sure you accepted the self-signed certificate warning in browser
+- **Port conflicts**: Verify port 8443 is not used by another process (`lsof -i :8443` on Linux/Mac)
+- **Firewall blocking**: Check if firewall is blocking port 8443
+- **Enhanced debugging**: Open browser dev tools (F12) → Console tab for detailed connection logs
+- **Test connectivity**: The login process now tests server connection automatically
 
 **❌ Browser shows "network error" for successful operations**
 - Check browser developer console (F12 → Console tab) for detailed error messages

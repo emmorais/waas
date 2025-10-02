@@ -258,7 +258,9 @@ cargo run
 - Restart demo from clean state if needed
 
 **"TSS signature generation failed" with successful server logs:**
-- **Most likely cause**: Browser timeout (TSS operations can take 60+ seconds)
+- **Firefox users**: Firefox has a 1-minute timeout - enhanced compatibility mode now enabled
+- **Most likely cause**: Browser timeout (TSS operations can take 60+ seconds)  
+- **Recommended**: Use Chrome/Edge for optimal demo experience
 - Server continues processing after browser timeout - check server logs
 - **First-time operations are slower** - subsequent operations use cached data
 - Open browser developer tools (F12 → Console tab) for detailed error messages
@@ -270,6 +272,11 @@ cargo run
 - TSS cryptographic operations are computationally intensive
 - Server continues processing - check logs for completion status
 - Subsequent operations will be significantly faster
+
+**Browser-specific demo notes:**
+- **✅ Chrome/Edge**: Best demo experience, handles long operations smoothly
+- **🦊 Firefox**: Compatibility mode enabled, but Chrome recommended for demos
+- **🧭 Safari**: Generally works, may show warnings for long operations
 
 ## 🎊 Demo Conclusion
 
