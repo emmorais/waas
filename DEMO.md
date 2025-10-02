@@ -257,6 +257,13 @@ cargo run
 - Check that server storage files exist
 - Restart demo from clean state if needed
 
+**"TSS signature generation failed" with successful server logs:**
+- Open browser developer tools (F12 → Console tab)
+- Look for detailed error messages in the console
+- Check if JSON parsing is failing
+- Verify network connectivity between browser and server
+- Try refreshing the page if the issue persists
+
 ## 🎊 Demo Conclusion
 
 After completing the demo scenarios, audiences will understand:

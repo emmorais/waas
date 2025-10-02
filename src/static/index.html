@@ -781,12 +781,33 @@ ${data.deleted_files.map((file, i) => `   ${i + 1}. ${file}`).join('\n')}
         hideLoading();
 
         if (!res.ok) {
-          showError("❌ Failed to sign message!");
-          updateWalletDisplay("❌ TSS signature generation failed. Please ensure presign records are available and try again.", false);
+          const errorText = await res.text();
+          console.error("HTTP Error:", res.status, res.statusText, errorText);
+          showError(`❌ HTTP Error ${res.status}: ${res.statusText}`);
+          updateWalletDisplay(`❌ TSS signature generation failed with HTTP ${res.status}. Server response: ${errorText}`, false);
           return;
         }
 
-        let data = await res.json();
+        let data;
+        try {
+          data = await res.json();
+          console.log("Sign response received:", data);
+        } catch (parseError) {
+          console.error("JSON Parse Error:", parseError);
+          const responseText = await res.text();
+          console.error("Raw response:", responseText);
+          showError("❌ Failed to parse server response!");
+          updateWalletDisplay(`❌ Invalid server response format. Raw response: ${responseText}`, false);
+          return;
+        }
+
+        // Check if the server indicates failure even with 200 status
+        if (!data.success) {
+          console.error("Server reported failure:", data.message);
+          showError(`❌ Server error: ${data.message}`);
+          updateWalletDisplay(`❌ TSS signing failed: ${data.message}`, false);
+          return;
+        }
         
         // Store the signature for verification
         window.lastSignature = data.signature;

@@ -222,7 +222,7 @@ Caused by:
   ````
 
   Fix: 
-  
+
   ````
   rustup update
   ````
@@ -243,6 +243,22 @@ Caused by:
 **❌ "No root key found"**
 - Generate keys first using the "Generate Key Pair" button
 - Ensure `keygen_result.json` file exists in working directory
+
+**❌ "TSS signature generation failed" but server logs show success**
+- Open browser developer tools (F12) and check Console tab for detailed errors
+- Look for JSON parsing errors or network issues in the browser console
+- Verify the server response format matches expected JSON structure
+- Check if the response is being truncated or corrupted
+- This can happen due to:
+  - Network connectivity issues between browser and server
+  - Browser security policies blocking the response
+  - Malformed JSON responses (check server logs for serialization errors)
+
+**❌ Browser shows "network error" for successful operations**
+- Check browser developer console (F12 → Console tab) for detailed error messages
+- Verify CORS headers are properly set (not typically an issue with same-origin requests)
+- Ensure the response Content-Type is `application/json`
+- Try refreshing the page and clearing browser cache
 
 ### Support
 For issues and questions, please open an issue on the [GitHub repository](https://github.com/emmorais/waas).

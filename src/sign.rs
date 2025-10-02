@@ -222,7 +222,12 @@ pub async fn sign(Json(request): Json<SignRequest>) -> ResponseJson<SignResponse
                 signature = %sig_hex,
                 signature_length = signature.len(),
                 duration_ms = duration.as_millis(),
-                "✅ TSS signing completed successfully"
+                client_response_size = serde_json::to_string(&SignResponse {
+                    signature: sig_hex.clone(),
+                    success: true,
+                    message: format!("Successfully signed message: '{}'", request.message),
+                }).map(|s| s.len()).unwrap_or(0),
+                "✅ TSS signing completed successfully - sending response to client"
             );
 
             ResponseJson(SignResponse {
